@@ -63,7 +63,7 @@ export function getOrCreateAttendeeId(request: Request): { readonly id: string; 
 }
 
 export function getClientIp(request: Request): string {
-  return request.headers.get("cf-connecting-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+  return request.headers.get("cf-connecting-ip") ?? "local";
 }
 
 function getExpectedPasscode(role: Exclude<PanelRole, "attendee">, env: PanelEnv): string | undefined {

@@ -95,7 +95,7 @@ describe("panel auth", () => {
     expect(rolePasscodeConfigured("moderator", { MODERATOR_PASSCODE: "mod" })).toBe(false);
   });
 
-  it("creates an anonymous attendee cookie and reads client IP headers", () => {
+  it("creates an anonymous attendee cookie and reads Cloudflare client IP headers", () => {
     const request = new Request("http://example.com/", { headers: { "cf-connecting-ip": "203.0.113.10" } });
     const attendee = getOrCreateAttendeeId(request);
 
@@ -122,9 +122,7 @@ describe("panel auth", () => {
     ).not.toBe(attendee.id);
     expect(getOrCreateAttendeeId(new Request("https://example.com/")).cookie).toContain("Secure");
     expect(getClientIp(request)).toBe("203.0.113.10");
-    expect(getClientIp(new Request("http://example.com/", { headers: { "x-forwarded-for": " 198.51.100.4 , 198.51.100.5" } }))).toBe(
-      "198.51.100.4",
-    );
+    expect(getClientIp(new Request("http://example.com/", { headers: { "x-forwarded-for": "198.51.100.4" } }))).toBe("local");
     expect(getClientIp(new Request("http://example.com/"))).toBe("local");
     expect(createLogoutCookies(true)).toEqual([
       "panel_auth_mc=; HttpOnly; SameSite=Lax; Secure; Path=/; Max-Age=0",
