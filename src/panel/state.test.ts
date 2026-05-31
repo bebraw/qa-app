@@ -55,6 +55,10 @@ describe("panel state", () => {
     expect(voteForQuestion({ id: second.question?.id ?? "", clientId: "attendee-2", ipAddress: "198.51.100.3", now: 4 })).toBe(false);
     expect(voteForQuestion({ id: first.question?.id ?? "", clientId: "attendee-2", ipAddress: "198.51.100.3", now: 5 })).toBe(false);
 
+    expect(listAudienceQuestions("attendee-1").map((question) => [question.text, question.status])).toContainEqual([
+      "What should teams stop doing with frontend architecture?",
+      "pending",
+    ]);
     expect(listAudienceQuestions("attendee-2").map((question) => [question.text, question.votes, question.votedByCurrentUser])).toEqual([
       ["How should designers and developers share ownership?", 2, true],
     ]);

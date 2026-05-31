@@ -11,7 +11,10 @@ export interface AuthState {
   readonly configured: boolean;
 }
 
-const authCookieName = "panel_auth";
+const authCookieNames = {
+  mc: "panel_auth_mc",
+  moderator: "panel_auth_moderator",
+} as const satisfies Record<Exclude<PanelRole, "attendee">, string>;
 const attendeeCookieName = "panel_attendee";
 const oneWeekSeconds = 60 * 60 * 24 * 7;
 
@@ -21,7 +24,7 @@ export function rolePasscodeConfigured(role: Exclude<PanelRole, "attendee">, env
 
 export async function createRoleCookie(role: Exclude<PanelRole, "attendee">, env: PanelEnv, secure: boolean): Promise<string> {
   const value = await signValue(role, requireAuthSecret(env));
-  return `${authCookieName}=${value}; HttpOnly; SameSite=Lax;${secureAttribute(secure)} Path=/; Max-Age=${oneWeekSeconds}`;
+  return `${authCookieNames[role]}=${value}; HttpOnly; SameSite=Lax;${secureAttribute(secure)} Path=/; Max-Age=${oneWeekSeconds}`;
 }
 
 export async function readAuthState(request: Request, env: PanelEnv): Promise<AuthState> {
@@ -31,14 +34,13 @@ export async function readAuthState(request: Request, env: PanelEnv): Promise<Au
     return { configured: false };
   }
 
-  const cookie = readCookie(request, authCookieName);
-  const role = cookie ? await verifyRoleCookie(cookie, env.AUTH_SECRET) : undefined;
+  const role = await readRequestRole(request, env.AUTH_SECRET);
 
   return role ? { configured, role } : { configured };
 }
 
-export function createLogoutCookie(secure: boolean): string {
-  return `${authCookieName}=; HttpOnly; SameSite=Lax;${secureAttribute(secure)} Path=/; Max-Age=0`;
+export function createLogoutCookies(secure: boolean): readonly string[] {
+  return Object.values(authCookieNames).map((name) => `${name}=; HttpOnly; SameSite=Lax;${secureAttribute(secure)} Path=/; Max-Age=0`);
 }
 
 export async function passcodeMatches(role: Exclude<PanelRole, "attendee">, passcode: string, env: PanelEnv): Promise<boolean> {
@@ -77,6 +79,34 @@ async function verifyRoleCookie(value: string, secret: string): Promise<Exclude<
 
   const expected = await signPayload(role, secret);
   return (await constantTimeEqual(signature, expected)) ? role : undefined;
+}
+
+async function readRequestRole(request: Request, secret: string): Promise<Exclude<PanelRole, "attendee"> | undefined> {
+  const preferredRole = requestedRole(new URL(request.url).pathname);
+  const roles = preferredRole ? [preferredRole] : (Object.keys(authCookieNames) as Array<Exclude<PanelRole, "attendee">>);
+
+  for (const role of roles) {
+    const cookie = readCookie(request, authCookieNames[role]);
+    const verifiedRole = cookie ? await verifyRoleCookie(cookie, secret) : undefined;
+
+    if (verifiedRole === role) {
+      return role;
+    }
+  }
+
+  return undefined;
+}
+
+function requestedRole(pathname: string): Exclude<PanelRole, "attendee"> | undefined {
+  if (pathname === "/mc" || pathname.startsWith("/mc/")) {
+    return "mc";
+  }
+
+  if (pathname === "/moderator" || pathname.startsWith("/moderator/")) {
+    return "moderator";
+  }
+
+  return undefined;
 }
 
 async function signValue(value: string, secret: string): Promise<string> {

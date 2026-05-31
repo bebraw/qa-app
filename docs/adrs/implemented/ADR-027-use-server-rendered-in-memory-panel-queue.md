@@ -21,10 +21,12 @@ The app uses:
 - a typed external polling module for attendee, operator, and word-screen fragments
 - anonymous attendee cookies for one-vote-per-question and one-vote-per-word behavior
 - IP-based throttling for question, word, and vote submissions
-- signed MC and moderator role cookies
+- separate signed MC and moderator role cookies
 - `AUTH_SECRET`, `MC_PASSCODE`, and `MODERATOR_PASSCODE` environment variables for privileged access
 
 Question and word-cloud state is coordinated through the default `PanelRoom` Durable Object. The room defaults to QA mode, and missing or invalid mode values fall back to QA. Attendee-submitted questions remain pending until a moderator approves them; approved questions become visible on already-open attendee and MC pages through lightweight polling fragments. Moderator queues use the same polling module to show pending submissions, vote counts, word-cloud changes, and moderation state from other requests. Duplicate submitted words increment the existing pending or approved entry, and approved words become visible on already-open attendee word and word-screen pages through the same polling module. Moderators can approve, hide, merge, and end word clouds. Ending a word cloud stops attendee and screen visibility but keeps the word data visible to the moderator until reset. A moderator reset clears the room state explicitly.
+
+The MC and moderator cookies use different names while retaining signed role payloads. This lets one browser keep `/mc` and `/moderator` tabs authenticated at the same time without allowing one role cookie to satisfy the other role boundary.
 
 ## Trigger
 

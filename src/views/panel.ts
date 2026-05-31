@@ -91,9 +91,7 @@ export function renderAudienceWordsFragment(words: PublicWord[]): string {
 }
 
 export function renderAudienceWordsContent(words: PublicWord[]): string {
-  return words.length === 0
-    ? emptyState("No words yet.")
-    : `<div class="flex flex-wrap gap-2">${words.map((word) => wordPill(word, "attendee")).join("")}</div>`;
+  return words.length === 0 ? emptyState("No words yet.") : wordCloud(words, "attendee");
 }
 
 export function renderMcPage(view: RoleViewModel): string {
@@ -236,7 +234,7 @@ export function renderWordScreenFragment(words: PublicWord[]): string {
 export function renderWordScreenContent(words: PublicWord[]): string {
   return words.length === 0
     ? `<p class="text-center text-3xl font-semibold text-white/78 sm:text-5xl">Waiting.</p>`
-    : `<div class="flex max-w-6xl flex-wrap items-center justify-center gap-x-8 gap-y-5">${words.map(screenWord).join("")}</div>`;
+    : wordCloud(words, "screen");
 }
 
 export function renderScreenPage(question: PublicQuestion | undefined): string {
@@ -341,7 +339,7 @@ function questionCard(question: PublicQuestion, role: "attendee" | "mc" | "moder
   const activeClass = question.status === "active" ? "border-app-accent bg-app-accent-ghost" : "border-app-line bg-white";
   const pendingLabel =
     question.status === "pending"
-      ? `<span class="rounded-full border border-app-line px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-app-text-soft">Pending</span>`
+      ? `<span class="rounded-full border border-app-line px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-app-text-soft">Under consideration</span>`
       : "";
   const hiddenLabel =
     question.status === "hidden"
@@ -377,6 +375,54 @@ function wordPill(word: PublicWord, role: "attendee" | "moderator"): string {
   return voteButton;
 }
 
+function wordCloud(words: PublicWord[], variant: "attendee" | "screen"): string {
+  const maximumCount = Math.max(...words.map((word) => word.count));
+  const containerClass =
+    variant === "screen"
+      ? "flex min-h-[72vh] max-w-6xl flex-wrap content-center items-center justify-center gap-x-8 gap-y-5 text-center"
+      : "flex min-h-[18rem] flex-wrap content-center items-center justify-center gap-x-5 gap-y-4 rounded-lg border border-app-line bg-white px-4 py-8 text-center shadow-panel sm:min-h-[22rem] sm:gap-x-7 sm:gap-y-5 sm:px-7";
+
+  return `<div class="${containerClass}">${words.map((word, index) => cloudWord(word, variant, maximumCount, index)).join("")}</div>`;
+}
+
+function cloudWord(word: PublicWord, variant: "attendee" | "screen", maximumCount: number, index: number): string {
+  const size = cloudWordSize(word.count, maximumCount, variant);
+  const weight = Math.round(520 + Math.min(1, word.count / maximumCount) * 360);
+  const rotation = variant === "screen" ? cloudRotation(word.id, index) : cloudRotation(word.id, index) * 0.7;
+  const style = `font-size:${size.toFixed(2)}rem;font-weight:${weight};transform:rotate(${rotation.toFixed(1)}deg);letter-spacing:0`;
+
+  if (variant === "screen") {
+    return `<span class="inline-block leading-none text-white" style="${style}">${escapeHtml(word.text)}</span>`;
+  }
+
+  const count = `<span class="ml-1 align-super text-[0.42em] font-semibold leading-none text-app-text-soft">${word.count}</span>`;
+  const label = `Vote for ${word.text}, ${word.count} ${word.count === 1 ? "vote" : "votes"}`;
+  const buttonClass =
+    "inline-block rounded-md px-1 leading-none text-app-text transition hover:text-app-text-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35";
+
+  if (word.votedByCurrentUser) {
+    return `<button class="${buttonClass} opacity-60" style="${style}" type="submit" aria-label="${escapeHtml(label)}" disabled>${escapeHtml(word.text)}${count}</button>`;
+  }
+
+  return `<form class="inline-flex" method="post" action="/words/vote">
+    <input type="hidden" name="wordId" value="${escapeHtml(word.id)}">
+    <button class="${buttonClass}" style="${style}" type="submit" aria-label="${escapeHtml(label)}">${escapeHtml(word.text)}${count}</button>
+  </form>`;
+}
+
+function cloudWordSize(count: number, maximumCount: number, variant: "attendee" | "screen"): number {
+  const minimum = variant === "screen" ? 2.2 : 1.25;
+  const maximum = variant === "screen" ? 7.8 : 4.2;
+  const ratio = Math.log2(count + 1) / Math.log2(maximumCount + 1);
+
+  return minimum + (maximum - minimum) * ratio;
+}
+
+function cloudRotation(id: string, index: number): number {
+  const seed = [...id].reduce((total, character) => total + character.charCodeAt(0), index * 17);
+  return [-5, -3, -1, 0, 2, 4, 6][seed % 7] ?? 0;
+}
+
 function moderatorWordRow(word: PublicWord): string {
   const status =
     word.status === "pending"
@@ -399,11 +445,6 @@ function moderatorWordRow(word: PublicWord): string {
   </article>`;
 }
 
-function screenWord(word: PublicWord): string {
-  const size = Math.min(7, 2.5 + word.count * 0.7);
-  return `<span class="font-semibold leading-none" style="font-size:${size}rem">${escapeHtml(word.text)}</span>`;
-}
-
 function actions(question: PublicQuestion, role: "attendee" | "mc" | "moderator"): string {
   const voteAction = role === "moderator" ? "/moderator/vote" : "/vote";
   const voteButton = question.votedByCurrentUser
@@ -411,7 +452,7 @@ function actions(question: PublicQuestion, role: "attendee" | "mc" | "moderator"
     : actionButton(voteAction, question.id, "+1", "border-app-line bg-app-surface text-app-text hover:border-app-accent/40");
 
   if (role === "attendee") {
-    return voteButton;
+    return question.status === "pending" ? "" : voteButton;
   }
 
   if (role === "mc") {

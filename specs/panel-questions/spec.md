@@ -12,7 +12,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 
 - **Entry points:** `src/worker.ts` routes panel requests and forwards panel state routes to the `PanelRoom` Durable Object when the `PANEL_ROOM` binding is available.
 - **State model:** `src/panel/state.ts` stores questions, word-cloud entries, votes, active selection, hidden status, done status, ended word-cloud status, and rate-limit buckets for the active room.
-- **Auth model:** `src/panel/auth.ts` signs role cookies with `AUTH_SECRET`; MC and moderator passcodes come from `MC_PASSCODE` and `MODERATOR_PASSCODE`.
+- **Auth model:** `src/panel/auth.ts` signs separate MC and moderator role cookies with `AUTH_SECRET`; MC and moderator passcodes come from `MC_PASSCODE` and `MODERATOR_PASSCODE`.
 - **Views:** `src/views/panel.ts` renders server-side HTML for attendee, MC, moderator, and audience-screen views.
 - **Visual system:** Panel views use black-and-white UI tokens, the bundled Finlandica Headline font, and compact labels instead of explanatory helper text.
 - **Client behavior:** Forms post to Worker routes and redirect back to the relevant view. Attendee, MC, moderator, and word-screen views also load the typed `/panel-live.js` module, which polls HTML fragments and replaces the relevant list so newly submitted, approved, or voted content appears without a manual refresh.
@@ -36,9 +36,11 @@ The implementation should stay lightweight enough to run inside the existing Wor
 - [ ] `GET /` renders the attendee question view.
 - [ ] `/` follows the moderator-selected room mode, showing QA in QA mode and word submissions in wordcloud mode.
 - [ ] Attendees can add anonymous questions that remain pending until moderator approval.
+- [ ] Attendees can see their own pending questions as under consideration while those questions wait for moderator approval.
 - [ ] Attendees can submit anonymous word-cloud words.
 - [ ] Attendees can vote once per question and can vote on multiple questions.
 - [ ] Attendees can vote once per approved word-cloud word and can vote on multiple words.
+- [ ] Approved word-cloud entries render as a centered word cloud where higher-count words are visually larger.
 - [ ] Question creation is IP-throttled to reduce flooding.
 - [ ] Duplicate submitted words auto-increment the matching pending or approved word instead of creating another moderation item.
 - [ ] `GET /mc` requires the MC passcode and lets the MC select the active question or mark it done.
@@ -56,18 +58,20 @@ The implementation should stay lightweight enough to run inside the existing Wor
 ### Regression Guardrails
 
 - Anonymous attendee identity must be cookie-based and must not require a login flow.
-- MC and moderator role cookies must be signed with `AUTH_SECRET`.
+- MC and moderator role cookies must be signed with `AUTH_SECRET` and use separate cookie names so both roles can stay signed in in different tabs of the same browser.
 - Role views must remain inaccessible when passcodes or `AUTH_SECRET` are not configured.
 - Missing or invalid moderator mode values must resolve to QA mode.
 - Word-cloud controls must not be visible in `/moderator` while the room is in QA mode.
 - Question moderation controls must not be visible in `/moderator` while the room is in wordcloud mode.
 - Hidden and done questions must not appear in the attendee queue.
-- Pending questions must not appear in the attendee queue, MC queue, or question screen.
+- Pending questions must not appear in other attendee queues, the MC queue, or the question screen.
+- Pending questions may appear only to the submitting attendee and must not be votable before approval.
 - Approved questions must appear on already-open attendee question pages without a manual browser refresh.
 - MC and moderator queues must update when other attendees submit, vote, or when another operator changes moderation state.
 - Focus on an MC queue action must not prevent the MC queue from receiving live updates.
 - Pending and hidden word-cloud entries must not appear in the attendee word view or word screen.
 - Approved word-cloud entries must appear on already-open attendee word and word-screen pages without a manual browser refresh.
+- Word-cloud layout must weight approved words by total count instead of rendering every word at the same visual size.
 - Panel state routes must use the `PANEL_ROOM` Durable Object binding when it is configured.
 - Moderator word merges must support exact normalized matches and manually chosen variants such as different casing, punctuation, or alternate words.
 - Ending word-cloud mode must stop attendee/screen visibility while keeping data visible to the moderator until reset.
@@ -88,7 +92,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 
 - Given: the panel app is open
 - When: an attendee submits a valid question
-- Then: the question appears in the moderator queue as pending and receives the submitter's initial vote
+- Then: the question appears in the moderator queue as under consideration, appears as under consideration for the submitting attendee, and receives the submitter's initial vote
 
 **Scenario: Moderator approves an attendee question**
 

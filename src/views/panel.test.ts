@@ -65,7 +65,8 @@ describe("panel views", () => {
     expect(html).toContain('action="/"');
     expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).toContain('action="/vote"');
     expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).not.toContain('action="/moderator/vote"');
-    expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain("Readable 4");
+    expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain("Readable");
+    expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain("font-size:");
     expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain('name="word"');
   });
 
@@ -151,9 +152,11 @@ describe("panel views", () => {
     });
 
     expect(moderatorHtml).toContain("Pending question");
-    expect(moderatorHtml).toContain("Pending");
+    expect(moderatorHtml).toContain("Under consideration");
     expect(moderatorHtml).toContain('action="/moderator/approve"');
     expect(moderatorHtml).not.toContain('action="/moderator/vote"');
+    expect(renderAudiencePage({ mode: "qa", questions: [pendingQuestion], words: [] })).toContain("Under consideration");
+    expect(renderAudiencePage({ mode: "qa", questions: [pendingQuestion], words: [] })).not.toContain('action="/vote"');
   });
 
   it("renders word cloud attendee and screen views", () => {
@@ -165,8 +168,11 @@ describe("panel views", () => {
     expect(wordHtml).toContain("Word counted.");
     expect(wordHtml).toContain('action="/words"');
     expect(wordHtml).toContain('action="/words/vote"');
-    expect(wordHtml).toContain("Readable 4");
+    expect(wordHtml).toContain("Readable");
+    expect(wordHtml).toContain('aria-label="Vote for Readable, 4 votes"');
+    expect(wordHtml).toContain("transform:rotate");
     expect(renderWordScreenPage([approvedWord])).toContain("Readable");
+    expect(renderWordScreenPage([approvedWord])).toContain("min-h-[72vh]");
     expect(renderWordScreenPage([approvedWord])).toContain('data-live-src="/words/screen/live"');
     expect(renderWordScreenPage([approvedWord])).not.toContain('http-equiv="refresh"');
     expect(renderWordScreenPage([])).toContain("Waiting.");

@@ -2,7 +2,7 @@ import finlandicaRegularFont from "./fonts/FinlandicaHeadline-Regular.ttf";
 import { createHealthResponse } from "./api/health";
 import { exampleRoutes } from "./app-routes";
 import {
-  createLogoutCookie,
+  createLogoutCookies,
   createRoleCookie,
   getClientIp,
   getOrCreateAttendeeId,
@@ -363,7 +363,9 @@ async function handlePost(request: Request, env: PanelEnv): Promise<Response> {
 
   if (url.pathname === "/logout") {
     const headers = new Headers();
-    headers.append("set-cookie", createLogoutCookie(isSecureRequest(request)));
+    for (const cookie of createLogoutCookies(isSecureRequest(request))) {
+      headers.append("set-cookie", cookie);
+    }
     return redirectResponse("/", headers);
   }
 

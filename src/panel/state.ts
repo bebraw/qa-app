@@ -375,7 +375,12 @@ export function setPanelMode(mode: PanelMode): void {
 
 export function listAudienceQuestions(clientId: string): PublicQuestion[] {
   return sortQuestions(
-    [...store.questions.values()].filter((question) => question.status === "available" || question.status === "active"),
+    [...store.questions.values()].filter(
+      (question) =>
+        question.status === "available" ||
+        question.status === "active" ||
+        (question.status === "pending" && question.voterIds.has(clientId)),
+    ),
   ).map((question) => toPublicQuestion(question, clientId));
 }
 

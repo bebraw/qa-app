@@ -42,10 +42,16 @@ describe("worker", () => {
 
     expect(submitResponse.status).toBe(303);
     expect(submitResponse.headers.get("location")).toContain("Question+sent");
+    const submitterCookie = cookieHeaderFromResponse(submitResponse);
 
-    const pageResponse = await handleRequest(new Request("http://example.com/"));
-    const page = await pageResponse.text();
-    expect(page).not.toContain("What does durable frontend architecture mean in practice?");
+    await expect(handleRequest(new Request("http://example.com/")).then((response) => response.text())).resolves.not.toContain(
+      "What does durable frontend architecture mean in practice?",
+    );
+    const submitterPageResponse = await handleRequest(new Request("http://example.com/", { headers: { cookie: submitterCookie } }));
+    const submitterPage = await submitterPageResponse.text();
+    expect(submitterPage).toContain("What does durable frontend architecture mean in practice?");
+    expect(submitterPage).toContain("Under consideration");
+    expect(submitterPage).not.toContain('action="/vote"');
 
     const moderatorLogin = await handleRequest(
       new Request("http://example.com/moderator/login", {
@@ -61,7 +67,7 @@ describe("worker", () => {
       env,
     ).then((response) => response.text());
     const questionId = /name="questionId" value="([^"]+)"/u.exec(moderatorHtml)?.[1] ?? "";
-    expect(moderatorHtml).toContain("Pending");
+    expect(moderatorHtml).toContain("Under consideration");
     await handleRequest(
       new Request("http://example.com/moderator/approve", {
         method: "POST",
@@ -92,18 +98,18 @@ describe("worker", () => {
       handleRequest(new Request("http://example.com/mc/live", { headers: { cookie: mcCookie } }), env).then((response) => response.text()),
     ).resolves.toContain("What does durable frontend architecture mean in practice?");
 
-    const attendeeCookie = cookieHeaderFromResponse(pageResponse);
+    const voterCookie = cookieHeaderFromResponse(await handleRequest(new Request("http://example.com/")));
     const voteResponse = await handleRequest(
       new Request("http://example.com/vote", {
         method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded", cookie: attendeeCookie },
+        headers: { "content-type": "application/x-www-form-urlencoded", cookie: voterCookie },
         body: new URLSearchParams({ questionId }),
       }),
     );
     expect(voteResponse.status).toBe(303);
     expect(voteResponse.headers.get("location")).toBe("/");
     await expect(
-      handleRequest(new Request("http://example.com/", { headers: { cookie: attendeeCookie } })).then((response) => response.text()),
+      handleRequest(new Request("http://example.com/", { headers: { cookie: voterCookie } })).then((response) => response.text()),
     ).resolves.toContain("Voted");
     await expect(
       handleRequest(new Request("http://example.com/moderator/questions/live", { headers: { cookie: moderatorCookie } }), env).then(
@@ -170,9 +176,10 @@ describe("worker", () => {
     const wordPage = await handleRequest(new Request("http://example.com/words"));
     const wordHtml = await wordPage.text();
     const attendeeCookie = cookieHeaderFromResponse(wordPage);
-    expect(wordHtml).toContain("Great! 2");
+    expect(wordHtml).toContain("Great!");
+    expect(wordHtml).toContain('aria-label="Vote for Great!, 2 votes"');
     await expect(handleRequest(new Request("http://example.com/words/live")).then((response) => response.text())).resolves.toContain(
-      "Great! 2",
+      'aria-label="Vote for Great!, 2 votes"',
     );
     await expect(
       handleRequest(new Request("http://example.com/moderator/words/live", { headers: { cookie: moderatorCookie } }), env).then(
@@ -199,7 +206,7 @@ describe("worker", () => {
     );
     await expect(
       handleRequest(new Request("http://example.com/words", { headers: { cookie: attendeeCookie } })).then((response) => response.text()),
-    ).resolves.toContain("Great! 3");
+    ).resolves.toContain('aria-label="Vote for Great!, 3 votes"');
     await expect(handleRequest(new Request("http://example.com/words/screen")).then((response) => response.text())).resolves.toContain(
       "Great!",
     );
@@ -324,7 +331,7 @@ describe("worker", () => {
     ).then((response) => response.text());
 
     expect(moderatorHtml).toContain("Can everyone see the same approved queue now?");
-    expect(moderatorHtml).toContain("Pending");
+    expect(moderatorHtml).toContain("Under consideration");
   });
 
   it("redirects unknown posts and protected actions safely", async () => {
@@ -391,9 +398,9 @@ describe("worker", () => {
     expect(loginResponse.status).toBe(303);
     expect(loginResponse.headers.get("location")).toBe("/mc");
     expect(loginCookies).toEqual(
-      expect.arrayContaining([expect.stringContaining("panel_attendee="), expect.stringContaining("panel_auth=")]),
+      expect.arrayContaining([expect.stringContaining("panel_attendee="), expect.stringContaining("panel_auth_mc=")]),
     );
-    expect(loginCookies.find((cookie) => cookie.startsWith("panel_auth="))).not.toContain("Secure");
+    expect(loginCookies.find((cookie) => cookie.startsWith("panel_auth_mc="))).not.toContain("Secure");
 
     const secureLoginResponse = await handleRequest(
       new Request("https://example.com/mc/login", {
@@ -403,17 +410,38 @@ describe("worker", () => {
       }),
       env,
     );
-    expect(readSetCookies(secureLoginResponse.headers).find((cookie) => cookie.startsWith("panel_auth="))).toContain("Secure");
+    expect(readSetCookies(secureLoginResponse.headers).find((cookie) => cookie.startsWith("panel_auth_mc="))).toContain("Secure");
 
-    const mcResponse = await handleRequest(new Request("http://example.com/mc", { headers: { cookie: authCookie } }), env);
+    const moderatorLoginResponse = await handleRequest(
+      new Request("http://example.com/moderator/login", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", cookie: authCookie },
+        body: new URLSearchParams({ passcode: "mod-passcode" }),
+      }),
+      env,
+    );
+    const sharedBrowserCookie = cookieHeaderFromSetCookies([...loginCookies, ...readSetCookies(moderatorLoginResponse.headers)]);
+
+    const mcResponse = await handleRequest(new Request("http://example.com/mc", { headers: { cookie: sharedBrowserCookie } }), env);
     await expect(mcResponse.text()).resolves.toContain("Queue");
 
+    const moderatorResponse = await handleRequest(
+      new Request("http://example.com/moderator", { headers: { cookie: sharedBrowserCookie } }),
+      env,
+    );
+    await expect(moderatorResponse.text()).resolves.toContain("Moderator");
+
     const logoutResponse = await handleRequest(
-      new Request("http://example.com/logout", { method: "POST", headers: { cookie: authCookie } }),
+      new Request("http://example.com/logout", { method: "POST", headers: { cookie: sharedBrowserCookie } }),
       env,
     );
     expect(logoutResponse.headers.get("location")).toBe("/");
-    expect(readSetCookies(logoutResponse.headers).find((cookie) => cookie.startsWith("panel_auth="))).toContain("Max-Age=0");
+    expect(readSetCookies(logoutResponse.headers)).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/^panel_auth_mc=.*Max-Age=0/u),
+        expect.stringMatching(/^panel_auth_moderator=.*Max-Age=0/u),
+      ]),
+    );
   });
 
   it("lets moderator hide questions and MC select the screen question", async () => {
