@@ -560,11 +560,19 @@ function toPublicWord(word: PanelWord, clientId: string): PublicWord {
   return {
     id: word.id,
     text: word.text,
-    count: word.submissionCount + word.voterIds.size,
+    count: publicWordCount(word, clientId),
     status: word.status,
     votedByCurrentUser: word.voterIds.has(clientId),
     submittedByCurrentUser: word.submitterIds.has(clientId),
   };
+}
+
+function publicWordCount(word: PanelWord, clientId: string): number {
+  if (word.status === "pending" && word.submitterIds.has(clientId)) {
+    return 1;
+  }
+
+  return word.submissionCount + word.voterIds.size;
 }
 
 function sortQuestions(questions: PanelQuestion[]): PanelQuestion[] {

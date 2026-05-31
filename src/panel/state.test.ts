@@ -344,12 +344,13 @@ describe("panel state", () => {
     expect(first.ok).toBe(true);
     expect(first.word?.status).toBe("pending");
     expect(duplicate.message).toBe("Word counted.");
+    expect(duplicate.word?.count).toBe(1);
     expect(listModeratorWords("moderator-1").map((word) => [word.text, word.count, word.status])).toEqual([["Great!", 2, "pending"]]);
-    expect(listAudienceWords("attendee-1").map((word) => [word.text, word.status, word.submittedByCurrentUser])).toEqual([
-      ["Great!", "pending", true],
+    expect(listAudienceWords("attendee-1").map((word) => [word.text, word.count, word.status, word.submittedByCurrentUser])).toEqual([
+      ["Great!", 1, "pending", true],
     ]);
-    expect(listAudienceWords("attendee-2").map((word) => [word.text, word.status, word.submittedByCurrentUser])).toEqual([
-      ["Great!", "pending", true],
+    expect(listAudienceWords("attendee-2").map((word) => [word.text, word.count, word.status, word.submittedByCurrentUser])).toEqual([
+      ["Great!", 1, "pending", true],
     ]);
     expect(listAudienceWords("attendee-3")).toEqual([]);
 
