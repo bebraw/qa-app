@@ -153,7 +153,7 @@ describe("worker", () => {
 
     expect(firstResponse.headers.get("location")).toContain("Word+added");
     expect(firstResponse.headers.get("location")).toContain("/");
-    expect(duplicateResponse.headers.get("location")).toContain("Word+counted");
+    expect(duplicateResponse.headers.get("location")).toContain("Word+added");
     await expect(handleRequest(new Request("http://example.com/words")).then((response) => response.status)).resolves.toBe(404);
     await expect(handleRequest(new Request("http://example.com/")).then((response) => response.text())).resolves.toContain("No words yet.");
     await expect(

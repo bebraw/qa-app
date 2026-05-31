@@ -257,7 +257,7 @@ export function submitWord(input: {
       submitterIds: new Set([...existing.submitterIds, input.clientId]),
     };
     store.words.set(existing.id, word);
-    return { ok: true, message: "Word counted.", word: toPublicWord(word, input.clientId) };
+    return { ok: true, message: existing.status === "pending" ? "Word added." : "Word counted.", word: toPublicWord(word, input.clientId) };
   }
 
   const word: PanelWord = {
