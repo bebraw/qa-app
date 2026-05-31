@@ -51,6 +51,10 @@ The moderator controls whether `/` is in QA or wordcloud mode. In QA mode, `/mod
 
 Regular attendee interactions stay at `/`: asking questions, submitting words, and voting all post back to `/` regardless of the active panel mode. Attendees see their own pending submissions as under consideration and cannot vote for questions or words they submitted.
 
+Anonymous attendee identity is cookie-based. This prevents accidental repeat votes in one browser session, but it is not a strong abuse-control boundary: an attendee can clear cookies, use another browser, or use another device to receive a fresh attendee identity. The app also throttles submissions and votes by Cloudflare client IP as a best-effort backstop, but shared conference networks and mobile network changes make IP limits unsuitable as a hard identity model.
+
+If a future event needs stronger controls, the lightweight options are to sign attendee cookies to prevent forged IDs, add stricter per-IP voting caps, or issue short-lived join tokens from a check-in or QR flow. Each option adds tradeoffs: signed cookies still reset when deleted, IP binding can block legitimate attendees behind shared networks, and join tokens or real authentication change the anonymous low-friction workflow.
+
 ## Deploy To Cloudflare
 
 Before deploying, choose the production Worker name in `wrangler.jsonc`. The default is currently `vibe-template-worker`.

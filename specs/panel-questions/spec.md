@@ -20,6 +20,20 @@ The implementation should stay lightweight enough to run inside the existing Wor
 - **Persistence:** Panel state is coordinated through a SQLite-backed Cloudflare Durable Object room so attendees, MC, moderator, and screen views share one authoritative state across Worker isolates. Ended word-cloud data remains visible to the moderator until reset for lightweight analytics review.
 - **Rate limiting:** Question and word creation are throttled by Cloudflare client IP when `cf-connecting-ip` is present and by a shared local fallback otherwise. Vote submissions are also throttled by that client IP key, and each anonymous attendee cookie can vote once per question or approved word. Failed MC and moderator login attempts are throttled by role and client IP.
 
+### Anonymous Identity Limits
+
+Anonymous attendee identity is a lightweight abuse-resistance mechanism, not authentication. The `panel_attendee` cookie lets the app prevent accidental repeat votes and hide submitter-only pending entries from other browser sessions, but attendees can reset that identity by clearing cookies, switching browsers, using private browsing, or using another device.
+
+IP throttling is only a backstop for flooding. It must not be treated as a durable person identity because conference Wi-Fi, NAT, VPNs, and mobile network changes can make many attendees share one IP or make one attendee appear from several IPs.
+
+Options for stronger controls:
+
+- **Signed attendee cookies:** Prevents forged attendee IDs, but deleting the cookie still creates a new identity.
+- **IP or IP plus user-agent binding:** Raises the cost of casual resets, but can block legitimate attendees on shared networks and adds privacy-sensitive coupling.
+- **Per-IP per-question or per-word vote caps:** Limits large-scale abuse from one network address, but risks suppressing votes from a venue NAT.
+- **Short-lived join tokens:** QR, seat, or check-in tokens make reset abuse harder while keeping the UI mostly anonymous, but add operational setup.
+- **Real authentication:** Gives the strongest identity boundary, but changes the low-friction attendee workflow and is out of scope for the current lightweight panel app.
+
 ### Anti-Patterns
 
 - Do not require attendee authentication for asking or voting.
@@ -61,6 +75,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 ### Regression Guardrails
 
 - Anonymous attendee identity must be cookie-based and must not require a login flow.
+- Anonymous attendee identity must be documented as abuse-resistant rather than abuse-proof.
 - Regular attendee forms must use `/` as their action route; role, screen, asset, API, and live-fragment routes may remain separate.
 - MC and moderator role cookies must be signed with `AUTH_SECRET` and use separate cookie names so both roles can stay signed in in different tabs of the same browser.
 - Role views must remain inaccessible when passcodes or `AUTH_SECRET` are not configured.

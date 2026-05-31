@@ -28,6 +28,8 @@ Question and word-cloud state is coordinated through the default `PanelRoom` Dur
 
 The MC and moderator cookies use different names while retaining signed role payloads. This lets one browser keep `/mc` and `/moderator` tabs authenticated at the same time without allowing one role cookie to satisfy the other role boundary.
 
+Anonymous attendee cookies are an abuse-resistance convenience, not authentication. They prevent accidental repeat voting in one browser session and support submitter-only pending views, but attendees can reset identity by clearing cookies, using private browsing, switching browsers, or using another device. IP throttling remains a best-effort flood control and must not be treated as durable person identity because conference networks commonly put many attendees behind one address.
+
 ## Trigger
 
 The project is no longer only a starter Worker. It now hosts a real conference workflow with role-specific behavior, anonymous user input, moderation, and an audience display surface.
@@ -46,6 +48,7 @@ The project is no longer only a starter Worker. It now hosts a real conference w
 **Negative:**
 
 - The first implementation uses one hard-coded default room instead of a multi-room event model.
+- Anonymous attendee identity is resettable by users and is not a strong one-person-one-vote guarantee.
 - IP throttling is room-local and best-effort; it is not a full abuse-control system.
 - Realtime behavior is polling-based, not push-based, and only reflects the Worker state reached by the polling request.
 - The question screen still refreshes by HTML refresh rather than live push updates.
@@ -75,3 +78,15 @@ This was deferred because SSE improves delivery latency but does not by itself s
 ### Build a client-side single-page app
 
 This was rejected because the interaction model is simple enough for server-rendered forms, and the repo already enforces a typed boundary for browser code instead of inline scripts.
+
+### Sign attendee cookies
+
+This was deferred because signing would prevent forged attendee IDs but would not stop cookie deletion from creating a new identity. It is useful hardening if attendee IDs become externally visible or trusted by additional surfaces, but it does not provide one-person-one-vote semantics by itself.
+
+### Bind attendee identity to IP or user-agent
+
+This was rejected for the current event because shared venue networks, NAT, VPNs, and mobile network changes can block legitimate attendees or split one attendee across identities. IP is kept as throttling input only.
+
+### Issue join tokens or require authentication
+
+This was rejected for the current lightweight flow because QR, seat, check-in, magic-link, or account-based identity adds operational setup and changes the anonymous attendee experience. It remains the right direction if a future event needs stronger one-person-one-vote guarantees.
