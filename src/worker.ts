@@ -362,7 +362,9 @@ async function handlePost(request: Request, env: PanelEnv): Promise<Response> {
   }
 
   if (url.pathname === "/logout") {
-    return redirectResponse("/", { "set-cookie": createLogoutCookie(isSecureRequest(request)) });
+    const headers = new Headers();
+    headers.append("set-cookie", createLogoutCookie(isSecureRequest(request)));
+    return redirectResponse("/", headers);
   }
 
   if (url.pathname.startsWith("/mc/")) {
@@ -393,10 +395,9 @@ async function login(
     return redirectResponse(withNotice(redirectPath, "Passcode not accepted."), headers);
   }
 
-  return redirectResponse(redirectPath, {
-    ...headers,
-    "set-cookie": await createRoleCookie(role, env, isSecureRequest(request)),
-  });
+  const responseHeaders = new Headers(headers);
+  responseHeaders.append("set-cookie", await createRoleCookie(role, env, isSecureRequest(request)));
+  return redirectResponse(redirectPath, responseHeaders);
 }
 
 async function handleMcAction(request: Request, env: PanelEnv, headers: HeadersInit): Promise<Response> {
@@ -521,8 +522,14 @@ function withNotice(path: string, notice: string): string {
   return `${url.pathname}${url.search}`;
 }
 
-function cookieHeaders(cookie: string | undefined): HeadersInit {
-  return cookie ? { "set-cookie": cookie } : {};
+function cookieHeaders(cookie: string | undefined): Headers {
+  const headers = new Headers();
+
+  if (cookie) {
+    headers.append("set-cookie", cookie);
+  }
+
+  return headers;
 }
 
 function isSecureRequest(request: Request): boolean {

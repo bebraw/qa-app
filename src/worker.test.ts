@@ -55,7 +55,7 @@ describe("worker", () => {
       }),
       env,
     );
-    const moderatorCookie = moderatorLogin.headers.get("set-cookie") ?? "";
+    const moderatorCookie = cookieHeaderFromResponse(moderatorLogin);
     const moderatorHtml = await handleRequest(
       new Request("http://example.com/moderator", { headers: { cookie: moderatorCookie } }),
       env,
@@ -87,12 +87,12 @@ describe("worker", () => {
       }),
       env,
     );
-    const mcCookie = mcLogin.headers.get("set-cookie") ?? "";
+    const mcCookie = cookieHeaderFromResponse(mcLogin);
     await expect(
       handleRequest(new Request("http://example.com/mc/live", { headers: { cookie: mcCookie } }), env).then((response) => response.text()),
     ).resolves.toContain("What does durable frontend architecture mean in practice?");
 
-    const attendeeCookie = pageResponse.headers.get("set-cookie") ?? "";
+    const attendeeCookie = cookieHeaderFromResponse(pageResponse);
     const voteResponse = await handleRequest(
       new Request("http://example.com/vote", {
         method: "POST",
@@ -142,7 +142,7 @@ describe("worker", () => {
       }),
       env,
     );
-    const moderatorCookie = moderatorLogin.headers.get("set-cookie") ?? "";
+    const moderatorCookie = cookieHeaderFromResponse(moderatorLogin);
     await handleRequest(
       new Request("http://example.com/moderator/mode", {
         method: "POST",
@@ -169,7 +169,7 @@ describe("worker", () => {
     );
     const wordPage = await handleRequest(new Request("http://example.com/words"));
     const wordHtml = await wordPage.text();
-    const attendeeCookie = wordPage.headers.get("set-cookie") ?? "";
+    const attendeeCookie = cookieHeaderFromResponse(wordPage);
     expect(wordHtml).toContain("Great! 2");
     await expect(handleRequest(new Request("http://example.com/words/live")).then((response) => response.text())).resolves.toContain(
       "Great! 2",
@@ -227,7 +227,7 @@ describe("worker", () => {
       }),
       env,
     );
-    const moderatorCookie = moderatorLogin.headers.get("set-cookie") ?? "";
+    const moderatorCookie = cookieHeaderFromResponse(moderatorLogin);
 
     await expect(handleRequest(new Request("http://example.com/")).then((response) => response.text())).resolves.toContain(
       "Ask a question",
@@ -317,7 +317,7 @@ describe("worker", () => {
       }),
       durableEnv,
     );
-    const moderatorCookie = moderatorLogin.headers.get("set-cookie") ?? "";
+    const moderatorCookie = cookieHeaderFromResponse(moderatorLogin);
     const moderatorHtml = await handleRequest(
       new Request("http://example.com/moderator", { headers: { cookie: moderatorCookie } }),
       durableEnv,
@@ -385,12 +385,15 @@ describe("worker", () => {
       }),
       env,
     );
-    const authCookie = loginResponse.headers.get("set-cookie") ?? "";
+    const loginCookies = readSetCookies(loginResponse.headers);
+    const authCookie = cookieHeaderFromSetCookies(loginCookies);
 
     expect(loginResponse.status).toBe(303);
     expect(loginResponse.headers.get("location")).toBe("/mc");
-    expect(authCookie).toContain("panel_auth=");
-    expect(authCookie).not.toContain("Secure");
+    expect(loginCookies).toEqual(
+      expect.arrayContaining([expect.stringContaining("panel_attendee="), expect.stringContaining("panel_auth=")]),
+    );
+    expect(loginCookies.find((cookie) => cookie.startsWith("panel_auth="))).not.toContain("Secure");
 
     const secureLoginResponse = await handleRequest(
       new Request("https://example.com/mc/login", {
@@ -400,7 +403,7 @@ describe("worker", () => {
       }),
       env,
     );
-    expect(secureLoginResponse.headers.get("set-cookie")).toContain("Secure");
+    expect(readSetCookies(secureLoginResponse.headers).find((cookie) => cookie.startsWith("panel_auth="))).toContain("Secure");
 
     const mcResponse = await handleRequest(new Request("http://example.com/mc", { headers: { cookie: authCookie } }), env);
     await expect(mcResponse.text()).resolves.toContain("Queue");
@@ -410,7 +413,7 @@ describe("worker", () => {
       env,
     );
     expect(logoutResponse.headers.get("location")).toBe("/");
-    expect(logoutResponse.headers.get("set-cookie")).toContain("Max-Age=0");
+    expect(readSetCookies(logoutResponse.headers).find((cookie) => cookie.startsWith("panel_auth="))).toContain("Max-Age=0");
   });
 
   it("lets moderator hide questions and MC select the screen question", async () => {
@@ -429,7 +432,7 @@ describe("worker", () => {
       }),
       env,
     );
-    const moderatorCookie = moderatorLogin.headers.get("set-cookie") ?? "";
+    const moderatorCookie = cookieHeaderFromResponse(moderatorLogin);
     const moderatorPage = await handleRequest(new Request("http://example.com/moderator", { headers: { cookie: moderatorCookie } }), env);
     const moderatorHtml = await moderatorPage.text();
     const questionId = /name="questionId" value="([^"]+)"/u.exec(moderatorHtml)?.[1] ?? "";
@@ -452,7 +455,7 @@ describe("worker", () => {
       }),
       env,
     );
-    const mcCookie = mcLogin.headers.get("set-cookie") ?? "";
+    const mcCookie = cookieHeaderFromResponse(mcLogin);
 
     await handleRequest(
       new Request("http://example.com/mc/select", {
@@ -511,7 +514,7 @@ describe("worker", () => {
       }),
       env,
     );
-    const moderatorCookie = moderatorLogin.headers.get("set-cookie") ?? "";
+    const moderatorCookie = cookieHeaderFromResponse(moderatorLogin);
     const moderatorPage = await handleRequest(new Request("http://example.com/moderator", { headers: { cookie: moderatorCookie } }), env);
     const questionId = /name="questionId" value="([^"]+)"/u.exec(await moderatorPage.text())?.[1] ?? "";
 
@@ -589,6 +592,25 @@ describe("worker", () => {
     expect((await response.arrayBuffer()).byteLength).toBeGreaterThan(100_000);
   });
 });
+
+function readSetCookies(headers: Headers): string[] {
+  const headersWithSetCookie = headers as Headers & { readonly getSetCookie?: () => string[] };
+  const setCookies = headersWithSetCookie.getSetCookie?.();
+
+  if (setCookies) {
+    return setCookies;
+  }
+
+  return (headers.get("set-cookie") ?? "").split(/,\s*(?=[^;,]+=)/u).filter(Boolean);
+}
+
+function cookieHeaderFromSetCookies(setCookies: readonly string[]): string {
+  return setCookies.map((cookie) => cookie.split(";")[0]).join("; ");
+}
+
+function cookieHeaderFromResponse(response: Response): string {
+  return cookieHeaderFromSetCookies(readSetCookies(response.headers));
+}
 
 function createTestPanelRoom(storage: Map<string, unknown>): PanelRoom {
   return new PanelRoom(
