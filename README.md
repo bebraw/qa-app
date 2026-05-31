@@ -1,6 +1,6 @@
-# vibe-template
+# Future Frontend Panel Questions
 
-`vibe-template` currently ships as a Cloudflare Worker application served with Wrangler, implemented in JavaScript/TypeScript, and centered on server-rendered HTML with a small JSON API stub.
+This repository ships a small Cloudflare Worker application for collecting, moderating, and displaying audience questions during Future Frontend conference panels.
 
 This is a template for my vibecoding projects and it captures what I consider my best practices so I don't have to repeat them for each experiment.
 
@@ -25,8 +25,26 @@ Local development in this repo targets macOS. Other platforms may need script an
 - npm is also pinned exactly in `package.json`; local development is expected to use `nvm use`, and CI upgrades npm to the exact repo pin when the bundled npm version differs.
 - Copy `.dev.vars.example` to `.dev.vars` before running projects that need local secrets.
 - Use repo-pinned CLI tools through `npx`, including `npx wrangler` for Cloudflare-based experiments.
-- Start the stub Worker with `npm run dev`, then open `http://127.0.0.1:8787`.
+- Start the Worker with `npm run dev`, then open `http://127.0.0.1:8787`.
 - Rebuild the generated Tailwind stylesheet manually with `npm run build:css` when needed.
+
+## Panel App
+
+Set these values in `.dev.vars` locally and as Worker secrets in production:
+
+- `AUTH_SECRET`: long random string used to sign role cookies
+- `MC_PASSCODE`: passcode for the MC view
+- `MODERATOR_PASSCODE`: passcode for the moderator view
+
+Routes:
+
+- `GET /`: attendee view for anonymous questions and votes
+- `GET /mc`: passcode-protected MC view for choosing the live question and marking it done
+- `GET /moderator`: passcode-protected moderator view for adding, voting, hiding, and resetting questions
+- `GET /screen`: beamer view showing the active question
+- `GET /api/health`: JSON health response for smoke tests and tooling
+
+Panel state is in memory. The moderator reset clears it explicitly, and a Worker isolate restart can clear it implicitly.
 
 ## Verification
 
@@ -56,21 +74,16 @@ To apply a kit to another repo:
 
 For existing projects where the right kit set is unclear, start with the negotiation prompt in `.capabilities/README.md`. It asks an agent to inspect the target repo, present a checkbox-style capability pull plan, and wait for approval before editing files.
 
-## Starter App
-
-- `GET /` serves a minimal editorial Worker stub with a route index and a primary health-probe link.
-- `GET /styles.css` serves the generated Tailwind stylesheet.
-- `GET /api/health` serves a JSON health response for smoke tests and tooling.
-
 ## Source Layout
 
 - `src/worker.ts` is the Worker entry point and top-level router.
 - `src/api/` holds API response modules such as the health endpoint.
-- `src/views/` holds HTML rendering modules for the starter UI.
+- `src/panel/` holds panel question state and role-auth helpers.
+- `src/views/` holds HTML rendering modules for the panel UI.
 - Tests live next to the code they exercise under `src/`.
 
 ## Application Screenshot
 
-![Starter app screenshot](docs/screenshots/home.png)
+![Panel app screenshot](docs/screenshots/home.png)
 
-Refresh this asset manually when the starter UI changes materially.
+Refresh this asset manually when the panel UI changes materially.

@@ -1,6 +1,8 @@
 # Copy this file to .dev.vars and replace placeholder values before running
 # projects that need local secrets.
-SESSION_SECRET=change-this-to-a-long-random-secret
+AUTH_SECRET=change-this-to-a-long-random-secret
+MC_PASSCODE=change-this-mc-passcode
+MODERATOR_PASSCODE=change-this-moderator-passcode
 # Optional: keep a separate key for encrypted third-party credentials or
 # other sensitive values stored by the app.
 # APP_ENCRYPTION_SECRET=change-this-to-a-different-long-random-secret

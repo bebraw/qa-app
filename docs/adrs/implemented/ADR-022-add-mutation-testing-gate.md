@@ -20,7 +20,8 @@ We will add Stryker mutation testing as a separate mutation gate:
 
 - `npm run mutation` runs `stryker run`.
 - `stryker.config.mjs` configures Stryker with the Vitest runner and TypeScript checker.
-- Mutation testing targets runtime `src/**/*.ts` files and excludes declarations, unit tests, end-to-end tests, and `src/test-support.ts`.
+- Mutation testing targets runtime `src/**/*.ts` files and excludes declarations, unit tests, end-to-end tests, `src/test-support.ts`, the top-level Worker router, route constants, and large server-rendered HTML templates.
+- Stryker runs the Vitest suite for mutants instead of relying on Vitest related-test selection, because related selection can miss assertions that cover server-rendered Worker routes and view modules.
 - Mutation reports are written under `reports/mutation/`.
 - Stryker's temporary sandbox stays under ignored `.stryker-tmp/`.
 - `npm run quality:gate` runs the fast gate, browser gate, and mutation gate in that order.

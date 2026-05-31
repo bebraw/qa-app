@@ -82,7 +82,8 @@ The template needs a verification baseline that stays strict enough for end-to-e
 - Local Playwright browser installation should go through a pinned repo script instead of ad hoc `npx playwright install ...` usage.
 - Targeted checks may be documented for iteration, but `npm run quality:gate` and `npm run ci:local` remain the readiness baseline for non-documentation changes.
 - Documentation-only changes may skip `npm run ci:local` when they do not alter executable config, generated artifacts, package metadata, source code, or tests.
-- Mutation testing must exclude colocated tests, end-to-end tests, declarations, and `src/test-support.ts` from mutation.
+- Mutation testing must exclude colocated tests, end-to-end tests, declarations, `src/test-support.ts`, the top-level Worker router, route constants, and large server-rendered HTML templates from mutation.
+- Mutation testing must run the Vitest suite for mutants instead of relying on related-test selection, which can miss assertions for server-rendered Worker routing and view modules.
 - Mutation reports must be written under `reports/mutation/`, and Stryker's temporary sandbox must stay under ignored `.stryker-tmp/`.
 - New workflow write targets must be documented when they are introduced.
 

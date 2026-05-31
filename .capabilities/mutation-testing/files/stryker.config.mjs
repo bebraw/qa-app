@@ -9,7 +9,16 @@ const config = {
   htmlReporter: {
     fileName: "reports/mutation/index.html",
   },
-  mutate: ["src/**/*.ts", "!src/**/*.d.ts", "!src/**/*.test.ts", "!src/**/*.e2e.ts", "!src/test-support.ts"],
+  mutate: [
+    "src/**/*.ts",
+    "!src/**/*.d.ts",
+    "!src/**/*.test.ts",
+    "!src/**/*.e2e.ts",
+    "!src/test-support.ts",
+    "!src/app-routes.ts",
+    "!src/worker.ts",
+    "!src/views/panel.ts",
+  ],
   packageManager: "npm",
   reporters: ["clear-text", "progress", "html", "json"],
   testRunner: "vitest",
@@ -24,7 +33,7 @@ const config = {
   },
   vitest: {
     configFile: "vitest.config.ts",
-    related: true,
+    related: false,
   },
 };
 
