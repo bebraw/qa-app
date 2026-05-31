@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PublicQuestion, PublicWord } from "../panel/state";
-import { renderAudiencePage, renderMcPage, renderModeratorPage, renderScreenPage, renderWordPage, renderWordScreenPage } from "./panel";
+import { renderAudiencePage, renderMcPage, renderModeratorPage, renderScreenPage, renderWordScreenPage } from "./panel";
 
 const availableQuestion: PublicQuestion = {
   id: "question-1",
@@ -160,14 +160,14 @@ describe("panel views", () => {
   });
 
   it("renders word cloud attendee and screen views", () => {
-    const wordHtml = renderWordPage({ words: [approvedWord], notice: "Word counted." });
+    const wordHtml = renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord], notice: "Word counted." });
 
-    expect(wordHtml).toContain("<title>Words - Future Frontend Panels</title>");
+    expect(wordHtml).toContain("<title>Future Frontend Panels</title>");
     expect(wordHtml).toContain('<script src="/panel-live.js" type="module"></script>');
-    expect(wordHtml).toContain('data-live-src="/words/live"');
+    expect(wordHtml).toContain('data-live-src="/live"');
     expect(wordHtml).toContain("Word counted.");
-    expect(wordHtml).toContain('action="/words"');
-    expect(wordHtml).toContain('action="/words/vote"');
+    expect(wordHtml).toContain('action="/"');
+    expect(wordHtml).toContain('action="/vote"');
     expect(wordHtml).toContain("Readable");
     expect(wordHtml).toContain('aria-label="Vote for Readable, 4 votes"');
     expect(wordHtml).toContain("transform:rotate");

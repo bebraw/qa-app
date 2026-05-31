@@ -14,11 +14,6 @@ interface RoleViewModel extends AudienceViewModel {
   readonly wordCloudEnded: boolean;
 }
 
-interface WordViewModel {
-  readonly words: PublicWord[];
-  readonly notice?: string | undefined;
-}
-
 const appName = "Future Frontend Panels";
 
 export function renderAudiencePage(view: AudienceViewModel): string {
@@ -67,27 +62,6 @@ export function renderAudienceQuestionsContent(questions: PublicQuestion[]): str
   return questions.length === 0
     ? emptyState("No questions yet.")
     : questions.map((question) => questionCard(question, "attendee")).join("");
-}
-
-export function renderWordPage(view: WordViewModel): string {
-  return pageShell({
-    title: `Words - ${appName}`,
-    bodyClass: "bg-app-canvas text-app-text",
-    scriptPath: "/panel-live.js",
-    body: `
-      <main class="mx-auto flex min-h-screen w-[min(42rem,calc(100vw-1.5rem))] flex-col gap-5 px-1 py-6 sm:py-9">
-        ${header("Words")}
-        ${notice(view.notice)}
-        ${wordForm("/words", "Add word", "Word", "Send")}
-        ${renderAudienceWordsFragment(view.words)}
-      </main>`,
-  });
-}
-
-export function renderAudienceWordsFragment(words: PublicWord[]): string {
-  return `<section aria-label="Approved words" data-live-region="words" data-live-src="/words/live">
-    ${renderAudienceWordsContent(words)}
-  </section>`;
 }
 
 export function renderAudienceWordsContent(words: PublicWord[]): string {
@@ -367,7 +341,7 @@ function questionCard(question: PublicQuestion, role: "attendee" | "mc" | "moder
 function wordPill(word: PublicWord, role: "attendee" | "moderator"): string {
   const voteButton = word.votedByCurrentUser
     ? `<button class="h-10 rounded-full border border-app-line bg-app-surface px-4 text-sm font-semibold text-app-text-soft" type="submit" disabled>${escapeHtml(word.text)} ${word.count}</button>`
-    : `<form method="post" action="${role === "moderator" ? "/moderator/words/vote" : "/words/vote"}">
+    : `<form method="post" action="${role === "moderator" ? "/moderator/words/vote" : "/vote"}">
         <input type="hidden" name="wordId" value="${escapeHtml(word.id)}">
         <button class="h-10 rounded-full border border-app-line bg-white px-4 text-sm font-semibold text-app-text transition hover:bg-app-accent-ghost focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35" type="submit">${escapeHtml(word.text)} ${word.count}</button>
       </form>`;
@@ -404,7 +378,7 @@ function cloudWord(word: PublicWord, variant: "attendee" | "screen", maximumCoun
     return `<button class="${buttonClass} opacity-60" style="${style}" type="submit" aria-label="${escapeHtml(label)}" disabled>${escapeHtml(word.text)}${count}</button>`;
   }
 
-  return `<form class="inline-flex" method="post" action="/words/vote">
+  return `<form class="inline-flex" method="post" action="/vote">
     <input type="hidden" name="wordId" value="${escapeHtml(word.id)}">
     <button class="${buttonClass}" style="${style}" type="submit" aria-label="${escapeHtml(label)}">${escapeHtml(word.text)}${count}</button>
   </form>`;

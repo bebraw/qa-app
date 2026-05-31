@@ -38,8 +38,7 @@ Set these values in `.dev.vars` locally and as Worker secrets in production:
 
 Routes:
 
-- `GET /`: attendee view for the active moderator-selected mode: QA questions or word-cloud submissions
-- `GET /words`: attendee view for anonymous word-cloud submissions and votes, with automatic updates for newly approved words
+- `GET /`: attendee view for the active moderator-selected mode: QA questions or word-cloud submissions and votes
 - `GET /mc`: passcode-protected MC view for choosing the live question and marking it done, with automatic queue updates
 - `GET /moderator`: passcode-protected moderator view for approving, adding, voting, hiding, merging, ending, resetting, and switching panel mode, with QA as the default mode
 - `GET /screen`: beamer view showing the active question
@@ -106,7 +105,7 @@ Keep the Durable Object binding and migration in the deployed config. Removing o
 
 7. Smoke-test the deployed Worker:
    - Open `/api/health` and confirm it returns `{"ok":true,...}`.
-   - Open `/`, `/words`, `/mc`, `/moderator`, `/screen`, and `/words/screen`.
+   - Open `/`, `/mc`, `/moderator`, `/screen`, and `/words/screen`.
    - Confirm MC and moderator views require the production passcodes.
    - Submit a question and a word from attendee tabs, approve them in `/moderator`, and confirm already-open attendee/screen pages update without refresh.
    - Use `/moderator` reset before opening the room to attendees.

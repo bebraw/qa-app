@@ -51,7 +51,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 - [ ] The MC queue keeps polling while focus is inside its action area so newly approved questions still appear for the MC.
 - [ ] `GET /screen` shows only the currently active question selected by the MC.
 - [ ] `GET /words/screen` shows only approved word-cloud entries while the word cloud is open.
-- [ ] Approved word-cloud entries appear on already-open attendee word and word-screen pages without a manual browser refresh.
+- [ ] Approved word-cloud entries appear on already-open attendee root and word-screen pages without a manual browser refresh.
 - [ ] Deployed panel state is coordinated through the `PANEL_ROOM` Durable Object binding.
 - [ ] The feature is covered by unit tests and browser-visible smoke tests.
 
@@ -72,8 +72,8 @@ The implementation should stay lightweight enough to run inside the existing Wor
 - Approved questions must appear on already-open attendee question pages without a manual browser refresh.
 - MC and moderator queues must update when other attendees submit, vote, or when another operator changes moderation state.
 - Focus on an MC queue action must not prevent the MC queue from receiving live updates.
-- Pending and hidden word-cloud entries must not appear in the attendee word view or word screen.
-- Approved word-cloud entries must appear on already-open attendee word and word-screen pages without a manual browser refresh.
+- Pending and hidden word-cloud entries must not appear in the attendee root word-cloud view or word screen.
+- Approved word-cloud entries must appear on already-open attendee root and word-screen pages without a manual browser refresh.
 - Word-cloud layout must weight approved words by total count instead of rendering every word at the same visual size.
 - Panel state routes must use the `PANEL_ROOM` Durable Object binding when it is configured.
 - Moderator word merges must support exact normalized matches and manually chosen variants such as different casing, punctuation, or alternate words.
@@ -119,7 +119,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 
 - Given: a word-cloud entry is pending
 - When: the moderator approves it
-- Then: the word appears in attendee word views and on the word screen, including already-open pages after the live poll updates
+- Then: the word appears in the attendee root word-cloud view and on the word screen, including already-open pages after the live poll updates
 
 **Scenario: Moderator merges word variants**
 

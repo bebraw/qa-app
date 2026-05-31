@@ -1,6 +1,5 @@
 export const exampleRoutes = [
-  { path: "/", purpose: "Anonymous attendee question queue" },
-  { path: "/words", purpose: "Anonymous attendee word cloud" },
+  { path: "/", purpose: "Anonymous attendee question queue or word cloud" },
   { path: "/mc", purpose: "Passcode-protected MC question picker" },
   { path: "/moderator", purpose: "Passcode-protected moderation queue" },
   { path: "/screen", purpose: "Audience display for the active question" },

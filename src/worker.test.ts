@@ -119,27 +119,6 @@ describe("worker", () => {
   });
 
   it("accepts words, lets moderator approve and end the cloud", async () => {
-    const firstResponse = await handleRequest(
-      new Request("http://example.com/words", {
-        method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "198.51.100.10" },
-        body: new URLSearchParams({ word: "Great!" }),
-      }),
-    );
-    const duplicateResponse = await handleRequest(
-      new Request("http://example.com/words", {
-        method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "198.51.100.11" },
-        body: new URLSearchParams({ word: "great" }),
-      }),
-    );
-
-    expect(firstResponse.headers.get("location")).toContain("Word+added");
-    expect(duplicateResponse.headers.get("location")).toContain("Word+counted");
-    await expect(handleRequest(new Request("http://example.com/words")).then((response) => response.text())).resolves.toContain(
-      "No words yet.",
-    );
-
     const moderatorLogin = await handleRequest(
       new Request("http://example.com/moderator/login", {
         method: "POST",
@@ -157,6 +136,27 @@ describe("worker", () => {
       }),
       env,
     );
+    const firstResponse = await handleRequest(
+      new Request("http://example.com/", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "198.51.100.10" },
+        body: new URLSearchParams({ word: "Great!" }),
+      }),
+    );
+    const duplicateResponse = await handleRequest(
+      new Request("http://example.com/", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "198.51.100.11" },
+        body: new URLSearchParams({ word: "great" }),
+      }),
+    );
+
+    expect(firstResponse.headers.get("location")).toContain("Word+added");
+    expect(firstResponse.headers.get("location")).toContain("/");
+    expect(duplicateResponse.headers.get("location")).toContain("Word+counted");
+    await expect(handleRequest(new Request("http://example.com/words")).then((response) => response.status)).resolves.toBe(404);
+    await expect(handleRequest(new Request("http://example.com/")).then((response) => response.text())).resolves.toContain("No words yet.");
+
     const moderatorPage = await handleRequest(new Request("http://example.com/moderator", { headers: { cookie: moderatorCookie } }), env);
     const moderatorHtml = await moderatorPage.text();
     const wordId = /name="wordId" value="([^"]+)"/u.exec(moderatorHtml)?.[1] ?? "";
@@ -173,12 +173,12 @@ describe("worker", () => {
       }),
       env,
     );
-    const wordPage = await handleRequest(new Request("http://example.com/words"));
+    const wordPage = await handleRequest(new Request("http://example.com/"));
     const wordHtml = await wordPage.text();
     const attendeeCookie = cookieHeaderFromResponse(wordPage);
     expect(wordHtml).toContain("Great!");
     expect(wordHtml).toContain('aria-label="Vote for Great!, 2 votes"');
-    await expect(handleRequest(new Request("http://example.com/words/live")).then((response) => response.text())).resolves.toContain(
+    await expect(handleRequest(new Request("http://example.com/live")).then((response) => response.text())).resolves.toContain(
       'aria-label="Vote for Great!, 2 votes"',
     );
     await expect(
@@ -191,21 +191,21 @@ describe("worker", () => {
     );
 
     await handleRequest(
-      new Request("http://example.com/words/vote", {
+      new Request("http://example.com/vote", {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded", cookie: attendeeCookie },
         body: new URLSearchParams({ wordId }),
       }),
     );
     await handleRequest(
-      new Request("http://example.com/words/vote", {
+      new Request("http://example.com/vote", {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded", cookie: attendeeCookie },
         body: new URLSearchParams({ wordId }),
       }),
     );
     await expect(
-      handleRequest(new Request("http://example.com/words", { headers: { cookie: attendeeCookie } })).then((response) => response.text()),
+      handleRequest(new Request("http://example.com/", { headers: { cookie: attendeeCookie } })).then((response) => response.text()),
     ).resolves.toContain('aria-label="Vote for Great!, 3 votes"');
     await expect(handleRequest(new Request("http://example.com/words/screen")).then((response) => response.text())).resolves.toContain(
       "Great!",
@@ -412,7 +412,7 @@ describe("worker", () => {
     await expect(response.json()).resolves.toEqual({
       ok: true,
       name: "vibe-template-worker",
-      routes: ["/", "/words", "/mc", "/moderator", "/screen", "/words/screen", "/api/health"],
+      routes: ["/", "/mc", "/moderator", "/screen", "/words/screen", "/api/health"],
     });
   });
 

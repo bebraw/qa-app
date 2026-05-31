@@ -48,7 +48,6 @@ import {
   renderAudienceModeContent,
   renderAudiencePage,
   renderAudienceQuestionsContent,
-  renderAudienceWordsContent,
   renderMcQuestionsContent,
   renderMcPage,
   renderModeratorQuestionsContent,
@@ -56,7 +55,6 @@ import {
   renderModeratorWordsContent,
   renderModeratorPage,
   renderScreenPage,
-  renderWordPage,
   renderWordScreenContent,
   renderWordScreenPage,
 } from "./views/panel";
@@ -174,18 +172,6 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
 
   if (url.pathname === "/questions/live") {
     return htmlResponse(renderAudienceQuestionsContent(listAudienceQuestions(attendee.id)));
-  }
-
-  if (url.pathname === "/words") {
-    return htmlResponse(
-      renderWordPage({ words: listAudienceWords(attendee.id), notice: url.searchParams.get("notice") ?? undefined }),
-      200,
-      attendeeCookieHeaders,
-    );
-  }
-
-  if (url.pathname === "/words/live") {
-    return htmlResponse(renderAudienceWordsContent(listAudienceWords(attendee.id)));
   }
 
   if (url.pathname === "/mc") {
@@ -311,32 +297,21 @@ async function handlePost(request: Request, env: PanelEnv): Promise<Response> {
     return redirectResponse(withNotice("/", result.message), cookieHeader);
   }
 
-  if (url.pathname === "/words") {
-    const result = submitWord({
-      text: getFormValue(await request.formData(), "word"),
-      clientId: attendee.id,
-      ipAddress: getClientIp(request),
-    });
-    return redirectResponse(withNotice("/words", result.message), cookieHeader);
-  }
-
-  if (url.pathname === "/words/vote") {
-    const formData = await request.formData();
-    voteForWord({
-      id: getFormValue(formData, "wordId"),
-      clientId: attendee.id,
-      ipAddress: getClientIp(request),
-    });
-    return redirectResponse("/words", cookieHeader);
-  }
-
   if (url.pathname === "/vote") {
     const formData = await request.formData();
-    voteForQuestion({
-      id: getFormValue(formData, "questionId"),
-      clientId: attendee.id,
-      ipAddress: getClientIp(request),
-    });
+    if (getPanelMode() === "wordcloud") {
+      voteForWord({
+        id: getFormValue(formData, "wordId"),
+        clientId: attendee.id,
+        ipAddress: getClientIp(request),
+      });
+    } else {
+      voteForQuestion({
+        id: getFormValue(formData, "questionId"),
+        clientId: attendee.id,
+        ipAddress: getClientIp(request),
+      });
+    }
     return redirectResponse("/", cookieHeader);
   }
 
@@ -581,8 +556,6 @@ function shouldUsePanelRoom(pathname: string, method: string): boolean {
     pathname === "/" ||
     pathname === "/live" ||
     pathname === "/questions/live" ||
-    pathname === "/words" ||
-    pathname === "/words/live" ||
     pathname === "/mc" ||
     pathname === "/mc/live" ||
     pathname === "/moderator" ||

@@ -8,14 +8,6 @@ test("renders the attendee question page", async ({ page }) => {
   await expect(page.locator('script[src="/panel-live.js"]')).toHaveCount(1);
 });
 
-test("renders the attendee word page", async ({ page }) => {
-  await page.goto("/words");
-
-  await expect(page.getByRole("heading", { level: 1, name: "Words" })).toBeVisible();
-  await expect(page.getByPlaceholder("Word")).toBeVisible();
-  await expect(page.locator('script[src="/panel-live.js"]')).toHaveCount(1);
-});
-
 test("serves the health endpoint", async ({ request }) => {
   const response = await request.get("/api/health");
 
@@ -23,7 +15,7 @@ test("serves the health endpoint", async ({ request }) => {
   await expect(response.json()).resolves.toEqual({
     ok: true,
     name: "vibe-template-worker",
-    routes: ["/", "/words", "/mc", "/moderator", "/screen", "/words/screen", "/api/health"],
+    routes: ["/", "/mc", "/moderator", "/screen", "/words/screen", "/api/health"],
   });
 });
 
