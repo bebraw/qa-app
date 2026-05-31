@@ -28,7 +28,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 - Do not add inline browser JavaScript to make the queue feel live.
 - Do not bypass the `PanelRoom` Durable Object for panel state in deployed multiplayer flows.
 - Do not expose hidden or done questions to attendees or the audience screen.
-- Do not expose pending or hidden word-cloud entries to attendees or the audience screen.
+- Do not expose pending word-cloud entries to non-submitting attendees or the audience screen, and do not expose hidden word-cloud entries to attendees or the audience screen.
 
 ## Contract
 
@@ -77,7 +77,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 - Approved questions must appear on already-open attendee question pages without a manual browser refresh.
 - MC and moderator queues must update when other attendees submit, vote, or when another operator changes moderation state.
 - Focus on an MC queue action must not prevent the MC queue from receiving live updates.
-- Pending and hidden word-cloud entries must not appear in the attendee root word-cloud view or word screen.
+- Pending word-cloud entries may appear only to submitting attendees and must not appear to other attendees or the word screen; hidden word-cloud entries must not appear in the attendee root word-cloud view or word screen.
 - Approved word-cloud entries must appear on already-open attendee root and word-screen pages without a manual browser refresh.
 - Word-cloud layout must weight approved words by total count instead of rendering every word at the same visual size.
 - Panel state routes must use the `PANEL_ROOM` Durable Object binding when it is configured.
@@ -100,7 +100,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 
 - Given: the panel app is open
 - When: an attendee submits a valid question
-- Then: the question appears in the moderator queue as under consideration, appears as under consideration for the submitting attendee, and receives the submitter's initial vote
+- Then: the question appears in the moderator queue as under consideration, appears as under consideration for the submitting attendee, and does not receive a submitter vote
 
 **Scenario: Moderator approves an attendee question**
 
