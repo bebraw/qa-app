@@ -19,6 +19,16 @@ export function cssResponse(body: string): Response {
   });
 }
 
+export function fontResponse(body: ArrayBuffer): Response {
+  return new Response(body, {
+    status: 200,
+    headers: {
+      "content-type": "font/ttf",
+      "cache-control": "public, max-age=31536000, immutable",
+    },
+  });
+}
+
 export function redirectResponse(location: string, headers: HeadersInit = {}): Response {
   const responseHeaders = new Headers(headers);
   responseHeaders.set("location", location);

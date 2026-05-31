@@ -64,6 +64,92 @@ describe("worker", () => {
     ).resolves.toContain("Voted");
   });
 
+  it("accepts words, lets moderator approve and end the cloud", async () => {
+    const firstResponse = await handleRequest(
+      new Request("http://example.com/words", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "198.51.100.10" },
+        body: new URLSearchParams({ word: "Great!" }),
+      }),
+    );
+    const duplicateResponse = await handleRequest(
+      new Request("http://example.com/words", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "198.51.100.11" },
+        body: new URLSearchParams({ word: "great" }),
+      }),
+    );
+
+    expect(firstResponse.headers.get("location")).toContain("Word+added");
+    expect(duplicateResponse.headers.get("location")).toContain("Word+counted");
+    await expect(handleRequest(new Request("http://example.com/words")).then((response) => response.text())).resolves.toContain(
+      "No words yet.",
+    );
+
+    const moderatorLogin = await handleRequest(
+      new Request("http://example.com/moderator/login", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ passcode: "mod-passcode" }),
+      }),
+      env,
+    );
+    const moderatorCookie = moderatorLogin.headers.get("set-cookie") ?? "";
+    const moderatorPage = await handleRequest(new Request("http://example.com/moderator", { headers: { cookie: moderatorCookie } }), env);
+    const moderatorHtml = await moderatorPage.text();
+    const wordId = /name="wordId" value="([^"]+)"/u.exec(moderatorHtml)?.[1] ?? "";
+
+    expect(moderatorHtml).toContain("Great!");
+    expect(wordId).not.toBe("");
+
+    await handleRequest(
+      new Request("http://example.com/moderator/words/approve", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", cookie: moderatorCookie },
+        body: new URLSearchParams({ wordId }),
+      }),
+      env,
+    );
+    const wordPage = await handleRequest(new Request("http://example.com/words"));
+    const wordHtml = await wordPage.text();
+    const attendeeCookie = wordPage.headers.get("set-cookie") ?? "";
+    expect(wordHtml).toContain("Great! 2");
+
+    await handleRequest(
+      new Request("http://example.com/words/vote", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", cookie: attendeeCookie },
+        body: new URLSearchParams({ wordId }),
+      }),
+    );
+    await handleRequest(
+      new Request("http://example.com/words/vote", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", cookie: attendeeCookie },
+        body: new URLSearchParams({ wordId }),
+      }),
+    );
+    await expect(
+      handleRequest(new Request("http://example.com/words", { headers: { cookie: attendeeCookie } })).then((response) => response.text()),
+    ).resolves.toContain("Great! 3");
+    await expect(handleRequest(new Request("http://example.com/words/screen")).then((response) => response.text())).resolves.toContain(
+      "Great!",
+    );
+
+    await handleRequest(
+      new Request("http://example.com/moderator/words/end", { method: "POST", headers: { cookie: moderatorCookie } }),
+      env,
+    );
+    await expect(handleRequest(new Request("http://example.com/words/screen")).then((response) => response.text())).resolves.toContain(
+      "Waiting.",
+    );
+    await expect(
+      handleRequest(new Request("http://example.com/moderator", { headers: { cookie: moderatorCookie } }), env).then((response) =>
+        response.text(),
+      ),
+    ).resolves.toContain("Great!");
+  });
+
   it("redirects unknown posts and protected actions safely", async () => {
     const unknownPost = await handleRequest(new Request("http://example.com/missing", { method: "POST" }));
     expect(unknownPost.status).toBe(404);
@@ -106,13 +192,13 @@ describe("worker", () => {
     await expect(response.json()).resolves.toEqual({
       ok: true,
       name: "vibe-template-worker",
-      routes: ["/", "/mc", "/moderator", "/screen", "/api/health"],
+      routes: ["/", "/words", "/mc", "/moderator", "/screen", "/words/screen", "/api/health"],
     });
   });
 
   it("protects MC and moderator views with signed passcode cookies", async () => {
     const protectedMcResponse = await handleRequest(new Request("http://example.com/mc"), env);
-    await expect(protectedMcResponse.text()).resolves.toContain("Enter the panel passcode.");
+    await expect(protectedMcResponse.text()).resolves.toContain('action="/mc/login"');
 
     const loginResponse = await handleRequest(
       new Request("http://example.com/mc/login", {
@@ -140,7 +226,7 @@ describe("worker", () => {
     expect(secureLoginResponse.headers.get("set-cookie")).toContain("Secure");
 
     const mcResponse = await handleRequest(new Request("http://example.com/mc", { headers: { cookie: authCookie } }), env);
-    await expect(mcResponse.text()).resolves.toContain("Panel queue");
+    await expect(mcResponse.text()).resolves.toContain("Queue");
 
     const logoutResponse = await handleRequest(
       new Request("http://example.com/logout", { method: "POST", headers: { cookie: authCookie } }),
@@ -203,7 +289,7 @@ describe("worker", () => {
     );
     expect(doneResponse.headers.get("location")).toBe("/mc");
     await expect(handleRequest(new Request("http://example.com/screen")).then((response) => response.text())).resolves.toContain(
-      "Questions will appear here.",
+      "Waiting.",
     );
 
     await handleRequest(
@@ -298,6 +384,15 @@ describe("worker", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/css");
     expect(response.headers.get("cache-control")).toBe("no-store");
-    await expect(response.text()).resolves.toContain("--color-app-canvas:#f3eee6");
+    await expect(response.text()).resolves.toContain("--color-app-canvas:#fff");
+  });
+
+  it("serves the bundled Finlandica font", async () => {
+    const response = await handleRequest(new Request("http://example.com/fonts/FinlandicaHeadline-Regular.ttf"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("font/ttf");
+    expect(response.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+    expect((await response.arrayBuffer()).byteLength).toBeGreaterThan(100_000);
   });
 });

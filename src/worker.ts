@@ -1,3 +1,4 @@
+import finlandicaRegularFont from "./fonts/FinlandicaHeadline-Regular.ttf";
 import { createHealthResponse } from "./api/health";
 import { exampleRoutes } from "./app-routes";
 import {
@@ -11,20 +12,37 @@ import {
   type PanelEnv,
 } from "./panel/auth";
 import {
+  approveWord,
   chooseActiveQuestion,
+  endWordCloud,
   getActivePublicQuestion,
   hideQuestion,
+  hideWord,
   listAudienceQuestions,
+  listAudienceWords,
   listMcQuestions,
   listModeratorQuestions,
+  listModeratorWords,
+  listScreenWords,
+  mergeWord,
   markActiveQuestionDone,
   proposeQuestion,
   resetPanel,
+  submitWord,
   voteForQuestion,
+  voteForWord,
+  wordCloudEnded,
 } from "./panel/state";
 import { renderNotFoundPage } from "./views/not-found";
-import { renderAudiencePage, renderMcPage, renderModeratorPage, renderScreenPage } from "./views/panel";
-import { cssResponse, htmlResponse, redirectResponse } from "./views/shared";
+import {
+  renderAudiencePage,
+  renderMcPage,
+  renderModeratorPage,
+  renderScreenPage,
+  renderWordPage,
+  renderWordScreenPage,
+} from "./views/panel";
+import { cssResponse, fontResponse, htmlResponse, redirectResponse } from "./views/shared";
 
 export default {
   async fetch(request: Request, env?: PanelEnv): Promise<Response> {
@@ -37,6 +55,10 @@ export async function handleRequest(request: Request, env: PanelEnv = {}): Promi
 
   if (url.pathname === "/styles.css") {
     return cssResponse(await loadStylesheet());
+  }
+
+  if (url.pathname === "/fonts/FinlandicaHeadline-Regular.ttf") {
+    return fontResponse(await loadFinlandicaFont());
   }
 
   if (request.method === "POST") {
@@ -54,6 +76,14 @@ export async function handleRequest(request: Request, env: PanelEnv = {}): Promi
     );
   }
 
+  if (url.pathname === "/words") {
+    return htmlResponse(
+      renderWordPage({ words: listAudienceWords(attendee.id), notice: url.searchParams.get("notice") ?? undefined }),
+      200,
+      attendeeCookieHeaders,
+    );
+  }
+
   if (url.pathname === "/mc") {
     const auth = await readAuthState(request, env);
     return htmlResponse(
@@ -66,7 +96,13 @@ export async function handleRequest(request: Request, env: PanelEnv = {}): Promi
   if (url.pathname === "/moderator") {
     const auth = await readAuthState(request, env);
     return htmlResponse(
-      renderModeratorPage({ questions: listModeratorQuestions(attendee.id), auth, notice: url.searchParams.get("notice") ?? undefined }),
+      renderModeratorPage({
+        questions: listModeratorQuestions(attendee.id),
+        words: listModeratorWords(attendee.id),
+        wordCloudEnded: wordCloudEnded(),
+        auth,
+        notice: url.searchParams.get("notice") ?? undefined,
+      }),
       200,
       attendeeCookieHeaders,
     );
@@ -74,6 +110,10 @@ export async function handleRequest(request: Request, env: PanelEnv = {}): Promi
 
   if (url.pathname === "/screen") {
     return htmlResponse(renderScreenPage(getActivePublicQuestion()));
+  }
+
+  if (url.pathname === "/words/screen") {
+    return htmlResponse(renderWordScreenPage(listScreenWords()));
   }
 
   if (url.pathname === "/api/health") {
@@ -96,6 +136,25 @@ async function handlePost(request: Request, env: PanelEnv): Promise<Response> {
       ipAddress: getClientIp(request),
     });
     return redirectResponse(withNotice("/", result.message), cookieHeader);
+  }
+
+  if (url.pathname === "/words") {
+    const result = submitWord({
+      text: getFormValue(await request.formData(), "word"),
+      clientId: attendee.id,
+      ipAddress: getClientIp(request),
+    });
+    return redirectResponse(withNotice("/words", result.message), cookieHeader);
+  }
+
+  if (url.pathname === "/words/vote") {
+    const formData = await request.formData();
+    voteForWord({
+      id: getFormValue(formData, "wordId"),
+      clientId: attendee.id,
+      ipAddress: getClientIp(request),
+    });
+    return redirectResponse("/words", cookieHeader);
   }
 
   if (url.pathname === "/vote") {
@@ -212,6 +271,39 @@ async function handleModeratorAction(request: Request, env: PanelEnv, attendeeId
     return redirectResponse("/moderator", headers);
   }
 
+  if (url.pathname === "/moderator/words/approve") {
+    const formData = await request.formData();
+    approveWord(getFormValue(formData, "wordId"));
+    return redirectResponse("/moderator", headers);
+  }
+
+  if (url.pathname === "/moderator/words/vote") {
+    const formData = await request.formData();
+    voteForWord({
+      id: getFormValue(formData, "wordId"),
+      clientId: attendeeId,
+      ipAddress: getClientIp(request),
+    });
+    return redirectResponse("/moderator", headers);
+  }
+
+  if (url.pathname === "/moderator/words/hide") {
+    const formData = await request.formData();
+    hideWord(getFormValue(formData, "wordId"));
+    return redirectResponse("/moderator", headers);
+  }
+
+  if (url.pathname === "/moderator/words/merge") {
+    const formData = await request.formData();
+    mergeWord(getFormValue(formData, "wordId"), getFormValue(formData, "target"));
+    return redirectResponse("/moderator", headers);
+  }
+
+  if (url.pathname === "/moderator/words/end") {
+    endWordCloud();
+    return redirectResponse(withNotice("/moderator", "Word cloud ended."), headers);
+  }
+
   if (url.pathname === "/moderator/reset") {
     resetPanel();
     return redirectResponse(withNotice("/moderator", "Panel reset."), headers);
@@ -248,4 +340,19 @@ async function loadStylesheet(): Promise<string> {
 
   const styles = await import("../.generated/styles.css");
   return styles.default;
+}
+
+async function loadFinlandicaFont(): Promise<ArrayBuffer> {
+  if (finlandicaRegularFont instanceof ArrayBuffer) {
+    return finlandicaRegularFont;
+  }
+
+  // Vitest resolves non-code assets as file paths; Wrangler's Data rule bundles the font as an ArrayBuffer.
+  if (typeof process !== "undefined" && process.release?.name === "node") {
+    const { readFile } = await import("node:fs/promises");
+    const font = await readFile(new URL("./fonts/FinlandicaHeadline-Regular.ttf", import.meta.url));
+    return font.buffer.slice(font.byteOffset, font.byteOffset + font.byteLength);
+  }
+
+  throw new Error("Finlandica font asset was not bundled.");
 }

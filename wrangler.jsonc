@@ -13,5 +13,10 @@
       "globs": ["**/*.css"],
       "fallthrough": true,
     },
+    {
+      "type": "Data",
+      "globs": ["**/*.ttf"],
+      "fallthrough": true,
+    },
   ],
 }

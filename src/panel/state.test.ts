@@ -2,15 +2,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   chooseActiveQuestion,
   clearPanelStateForTests,
+  approveWord,
+  endWordCloud,
   getActivePublicQuestion,
   hideQuestion,
+  hideWord,
   listAudienceQuestions,
+  listAudienceWords,
   listMcQuestions,
   listModeratorQuestions,
+  listModeratorWords,
+  listScreenWords,
   markActiveQuestionDone,
+  mergeWord,
   proposeQuestion,
   resetPanel,
+  submitWord,
   voteForQuestion,
+  voteForWord,
+  wordCloudEnded,
 } from "./state";
 
 describe("panel state", () => {
@@ -230,5 +240,109 @@ describe("panel state", () => {
 
     resetPanel();
     expect(listModeratorQuestions("moderator-1")).toEqual([]);
+  });
+
+  it("auto-increments duplicate words and keeps new words pending", () => {
+    const first = submitWord({
+      text: "Great!",
+      clientId: "attendee-1",
+      ipAddress: "198.51.100.1",
+      now: 1,
+    });
+    const duplicate = submitWord({
+      text: "great",
+      clientId: "attendee-2",
+      ipAddress: "198.51.100.2",
+      now: 2,
+    });
+
+    expect(first.ok).toBe(true);
+    expect(first.word?.status).toBe("pending");
+    expect(duplicate.message).toBe("Word counted.");
+    expect(listModeratorWords("moderator-1").map((word) => [word.text, word.count, word.status])).toEqual([["Great!", 2, "pending"]]);
+    expect(listAudienceWords("attendee-1")).toEqual([]);
+
+    expect(approveWord(first.word?.id ?? "")).toBe(true);
+    expect(listAudienceWords("attendee-1").map((word) => [word.text, word.count])).toEqual([["Great!", 2]]);
+  });
+
+  it("allows only one attendee vote per approved word", () => {
+    const word = submitWord({
+      text: "Durable",
+      clientId: "attendee-1",
+      ipAddress: "198.51.100.1",
+      now: 1,
+    }).word;
+
+    expect(voteForWord({ id: word?.id ?? "", clientId: "attendee-2", ipAddress: "198.51.100.2", now: 2 })).toBe(false);
+    expect(approveWord(word?.id ?? "")).toBe(true);
+    expect(voteForWord({ id: word?.id ?? "", clientId: "attendee-2", ipAddress: "198.51.100.2", now: 3 })).toBe(true);
+    expect(voteForWord({ id: word?.id ?? "", clientId: "attendee-2", ipAddress: "198.51.100.2", now: 4 })).toBe(false);
+
+    expect(listAudienceWords("attendee-2").map((entry) => [entry.count, entry.votedByCurrentUser])).toEqual([[2, true]]);
+  });
+
+  it("lets moderator merge word variants into one entry", () => {
+    const great = submitWord({
+      text: "great",
+      clientId: "attendee-1",
+      ipAddress: "198.51.100.1",
+      now: 1,
+    }).word;
+    vi.mocked(globalThis.crypto.randomUUID).mockReturnValue("00000000-0000-4000-8000-000000000002");
+    const awesome = submitWord({
+      text: "awesome",
+      clientId: "attendee-2",
+      ipAddress: "198.51.100.2",
+      now: 2,
+    }).word;
+
+    expect(approveWord(great?.id ?? "")).toBe(true);
+    expect(voteForWord({ id: great?.id ?? "", clientId: "attendee-3", ipAddress: "198.51.100.3", now: 3 })).toBe(true);
+    expect(mergeWord(awesome?.id ?? "", "great!")).toBe(true);
+
+    expect(listModeratorWords("moderator-1").map((word) => [word.text, word.count, word.status])).toEqual([["great", 3, "approved"]]);
+    expect(mergeWord("missing", "great")).toBe(false);
+  });
+
+  it("keeps ended word cloud data visible to moderator until reset", () => {
+    const word = submitWord({
+      text: "Readable",
+      clientId: "attendee-1",
+      ipAddress: "198.51.100.1",
+      now: 1,
+    }).word;
+
+    expect(approveWord(word?.id ?? "")).toBe(true);
+    expect(listScreenWords()).toHaveLength(1);
+    endWordCloud(2);
+
+    expect(wordCloudEnded()).toBe(true);
+    expect(submitWord({ text: "Late", clientId: "attendee-2", ipAddress: "198.51.100.2", now: 3 }).message).toBe("Word cloud ended.");
+    expect(voteForWord({ id: word?.id ?? "", clientId: "attendee-2", ipAddress: "198.51.100.2", now: 4 })).toBe(false);
+    expect(listAudienceWords("attendee-1")).toEqual([]);
+    expect(listScreenWords()).toEqual([]);
+    expect(listModeratorWords("moderator-1").map((entry) => entry.text)).toEqual(["Readable"]);
+
+    resetPanel();
+    expect(wordCloudEnded()).toBe(false);
+    expect(listModeratorWords("moderator-1")).toEqual([]);
+  });
+
+  it("hides words and rate limits word submissions", () => {
+    const submissions = Array.from({ length: 31 }, (_, index) =>
+      submitWord({
+        text: `word ${index}`,
+        clientId: `attendee-${index}`,
+        ipAddress: "203.0.113.20",
+        now: index,
+      }),
+    );
+
+    expect(submissions[30]?.message).toBe("Please wait before adding another word.");
+    expect(submitWord({ text: "!", clientId: "attendee-short", ipAddress: "203.0.113.21", now: 1 }).message).toBe("Word is too short.");
+    expect(hideWord(submissions[0]?.word?.id ?? "")).toBe(true);
+    expect(approveWord(submissions[0]?.word?.id ?? "")).toBe(false);
+    expect(hideWord("missing")).toBe(false);
   });
 });

@@ -39,12 +39,14 @@ Set these values in `.dev.vars` locally and as Worker secrets in production:
 Routes:
 
 - `GET /`: attendee view for anonymous questions and votes
+- `GET /words`: attendee view for anonymous word-cloud submissions and votes
 - `GET /mc`: passcode-protected MC view for choosing the live question and marking it done
-- `GET /moderator`: passcode-protected moderator view for adding, voting, hiding, and resetting questions
+- `GET /moderator`: passcode-protected moderator view for adding, voting, hiding, merging, ending, and resetting panel content
 - `GET /screen`: beamer view showing the active question
+- `GET /words/screen`: beamer view showing approved word-cloud entries
 - `GET /api/health`: JSON health response for smoke tests and tooling
 
-Panel state is in memory. The moderator reset clears it explicitly, and a Worker isolate restart can clear it implicitly.
+Panel state is in memory. The moderator reset clears it explicitly, and a Worker isolate restart can clear it implicitly. Ended word-cloud data stays visible to the moderator until reset.
 
 ## Verification
 

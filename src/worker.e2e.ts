@@ -4,8 +4,16 @@ test("renders the attendee question page", async ({ page }) => {
   await page.goto("/");
 
   await expect(page.getByRole("heading", { level: 1, name: "Questions" })).toBeVisible();
-  await expect(page.getByPlaceholder("Question for the panel")).toBeVisible();
+  await expect(page.getByPlaceholder("Question")).toBeVisible();
   await expect(page.getByText("No questions yet.")).toBeVisible();
+});
+
+test("renders the attendee word page", async ({ page }) => {
+  await page.goto("/words");
+
+  await expect(page.getByRole("heading", { level: 1, name: "Words" })).toBeVisible();
+  await expect(page.getByPlaceholder("Word")).toBeVisible();
+  await expect(page.getByText("No words yet.")).toBeVisible();
 });
 
 test("serves the health endpoint", async ({ request }) => {
@@ -15,7 +23,7 @@ test("serves the health endpoint", async ({ request }) => {
   await expect(response.json()).resolves.toEqual({
     ok: true,
     name: "vibe-template-worker",
-    routes: ["/", "/mc", "/moderator", "/screen", "/api/health"],
+    routes: ["/", "/words", "/mc", "/moderator", "/screen", "/words/screen", "/api/health"],
   });
 });
 
@@ -24,5 +32,12 @@ test("serves the generated stylesheet", async ({ request }) => {
 
   expect(response.ok()).toBe(true);
   expect(response.headers()["content-type"]).toContain("text/css");
-  await expect(response.text()).resolves.toContain("--color-app-canvas:#f3eee6");
+  await expect(response.text()).resolves.toContain("--color-app-canvas:#fff");
+});
+
+test("serves the bundled Finlandica font", async ({ request }) => {
+  const response = await request.get("/fonts/FinlandicaHeadline-Regular.ttf");
+
+  expect(response.ok()).toBe(true);
+  expect(response.headers()["content-type"]).toContain("font/ttf");
 });

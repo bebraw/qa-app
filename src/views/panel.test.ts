@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { PublicQuestion } from "../panel/state";
-import { renderAudiencePage, renderMcPage, renderModeratorPage, renderScreenPage } from "./panel";
+import type { PublicQuestion, PublicWord } from "../panel/state";
+import { renderAudiencePage, renderMcPage, renderModeratorPage, renderScreenPage, renderWordPage, renderWordScreenPage } from "./panel";
 
 const availableQuestion: PublicQuestion = {
   id: "question-1",
@@ -26,6 +26,22 @@ const hiddenQuestion: PublicQuestion = {
   text: "Hidden question",
 };
 
+const approvedWord: PublicWord = {
+  id: "word-1",
+  text: "Readable",
+  count: 4,
+  status: "approved",
+  votedByCurrentUser: false,
+};
+
+const pendingWord: PublicWord = {
+  ...approvedWord,
+  id: "word-2",
+  text: "Durable",
+  count: 2,
+  status: "pending",
+};
+
 describe("panel views", () => {
   it("renders attendee questions, notices, and voted state", () => {
     const html = renderAudiencePage({ questions: [activeQuestion], notice: "Question added." });
@@ -33,7 +49,6 @@ describe("panel views", () => {
     expect(html).not.toContain("Stryker was here!");
     expect(html).toContain("<title>Future Frontend Panels</title>");
     expect(html).toContain("bg-app-canvas text-app-text");
-    expect(html).toContain("Ask or lift up what should be discussed next.");
     expect(html).toContain("Question added.");
     expect(html).toContain("How do we keep frontend systems understandable?");
     expect(html).toContain("Live");
@@ -55,6 +70,8 @@ describe("panel views", () => {
     const mcHtml = renderMcPage({ questions: [availableQuestion], auth: { configured: true, role: "mc" } });
     const moderatorHtml = renderModeratorPage({
       questions: [availableQuestion, hiddenQuestion],
+      words: [approvedWord, pendingWord],
+      wordCloudEnded: true,
       auth: { configured: true, role: "moderator" },
     });
 
@@ -65,17 +82,31 @@ describe("panel views", () => {
     expect(moderatorHtml).toContain('action="/moderator/vote"');
     expect(moderatorHtml).toContain('action="/moderator"');
     expect(moderatorHtml).toContain("Add moderator question");
-    expect(moderatorHtml).toContain("Seed question for the panel");
     expect(moderatorHtml).toContain('action="/moderator/hide"');
     expect(moderatorHtml).toContain(">Hide</button>");
-    expect(moderatorHtml).toContain("border-red-900/20 bg-red-50 text-red-900 hover:bg-red-100");
+    expect(moderatorHtml).toContain("border-app-line bg-white text-app-text-soft hover:text-app-text");
     expect(moderatorHtml).toContain("Hidden");
-    expect(moderatorHtml).toContain("Reset panel");
+    expect(moderatorHtml).toContain('action="/moderator/words/approve"');
+    expect(moderatorHtml).toContain('action="/moderator/words/merge"');
+    expect(moderatorHtml).toContain("Ended");
+    expect(moderatorHtml).toContain(">Reset</button>");
     expect(moderatorHtml).not.toContain("Stryker was here!");
   });
 
+  it("renders word cloud attendee and screen views", () => {
+    const wordHtml = renderWordPage({ words: [approvedWord], notice: "Word counted." });
+
+    expect(wordHtml).toContain("<title>Words - Future Frontend Panels</title>");
+    expect(wordHtml).toContain("Word counted.");
+    expect(wordHtml).toContain('action="/words"');
+    expect(wordHtml).toContain('action="/words/vote"');
+    expect(wordHtml).toContain("Readable 4");
+    expect(renderWordScreenPage([approvedWord])).toContain("Readable");
+    expect(renderWordScreenPage([])).toContain("Waiting.");
+  });
+
   it("renders the screen waiting state and active question state", () => {
-    expect(renderScreenPage(undefined)).toContain("Questions will appear here.");
+    expect(renderScreenPage(undefined)).toContain("Waiting.");
     expect(renderScreenPage(activeQuestion)).toContain("How do we keep frontend systems understandable?");
     expect(renderScreenPage(activeQuestion)).toContain('http-equiv="refresh"');
   });

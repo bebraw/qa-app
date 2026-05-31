@@ -2,6 +2,8 @@ export type PanelRole = "attendee" | "mc" | "moderator";
 
 export type QuestionStatus = "available" | "active" | "done" | "hidden";
 
+export type WordStatus = "pending" | "approved" | "hidden";
+
 export interface PanelQuestion {
   readonly id: string;
   readonly text: string;
@@ -27,18 +29,46 @@ export interface QuestionSubmissionResult {
   readonly question?: PublicQuestion;
 }
 
+export interface PanelWord {
+  readonly id: string;
+  readonly text: string;
+  readonly normalizedText: string;
+  readonly createdAt: number;
+  readonly submissionCount: number;
+  readonly voterIds: ReadonlySet<string>;
+  readonly status: WordStatus;
+}
+
+export interface PublicWord {
+  readonly id: string;
+  readonly text: string;
+  readonly count: number;
+  readonly status: WordStatus;
+  readonly votedByCurrentUser: boolean;
+}
+
+export interface WordSubmissionResult {
+  readonly ok: boolean;
+  readonly message: string;
+  readonly word?: PublicWord;
+}
+
 interface RateLimitBucket {
   readonly timestamps: number[];
 }
 
 interface PanelStore {
   readonly questions: Map<string, PanelQuestion>;
+  readonly words: Map<string, PanelWord>;
   readonly rateLimits: Map<string, RateLimitBucket>;
+  wordCloudEndedAt: number | undefined;
 }
 
 const store: PanelStore = {
   questions: new Map(),
+  words: new Map(),
   rateLimits: new Map(),
+  wordCloudEndedAt: undefined,
 };
 
 const maximumQuestionLength = 220;
@@ -46,6 +76,9 @@ const maximumQuestionSubmissions = 3;
 const questionWindowMs = 60_000;
 const maximumVotes = 80;
 const voteWindowMs = 60_000;
+const maximumWordLength = 40;
+const maximumWordSubmissions = 30;
+const wordWindowMs = 60_000;
 
 export function proposeQuestion(input: {
   readonly text: string;
@@ -110,6 +143,134 @@ export function voteForQuestion(input: {
   return true;
 }
 
+export function submitWord(input: {
+  readonly text: string;
+  readonly clientId: string;
+  readonly ipAddress: string;
+  readonly now?: number;
+}): WordSubmissionResult {
+  const now = input.now ?? Date.now();
+  const text = normalizeWordDisplay(input.text);
+  const normalizedText = normalizeWordKey(text);
+
+  if (store.wordCloudEndedAt !== undefined) {
+    return { ok: false, message: "Word cloud ended." };
+  }
+
+  if (normalizedText.length < 2) {
+    return { ok: false, message: "Word is too short." };
+  }
+
+  if (isRateLimited(`word:${input.ipAddress}`, maximumWordSubmissions, wordWindowMs, now)) {
+    return { ok: false, message: "Please wait before adding another word." };
+  }
+
+  const existing = findWordByKey(normalizedText);
+
+  if (existing && existing.status !== "hidden") {
+    const word = {
+      ...existing,
+      submissionCount: existing.submissionCount + 1,
+    };
+    store.words.set(existing.id, word);
+    return { ok: true, message: "Word counted.", word: toPublicWord(word, input.clientId) };
+  }
+
+  const word: PanelWord = {
+    id: createQuestionId(),
+    text,
+    normalizedText,
+    createdAt: now,
+    submissionCount: 1,
+    voterIds: new Set(),
+    status: "pending",
+  };
+
+  store.words.set(word.id, word);
+  return { ok: true, message: "Word added.", word: toPublicWord(word, input.clientId) };
+}
+
+export function approveWord(id: string): boolean {
+  const word = store.words.get(id);
+
+  if (!word || word.status === "hidden") {
+    return false;
+  }
+
+  store.words.set(id, { ...word, status: "approved" });
+  return true;
+}
+
+export function voteForWord(input: {
+  readonly id: string;
+  readonly clientId: string;
+  readonly ipAddress: string;
+  readonly now?: number;
+}): boolean {
+  const now = input.now ?? Date.now();
+
+  if (store.wordCloudEndedAt !== undefined || isRateLimited(`word-vote:${input.ipAddress}`, maximumVotes, voteWindowMs, now)) {
+    return false;
+  }
+
+  const word = store.words.get(input.id);
+
+  if (!word || word.status !== "approved" || word.voterIds.has(input.clientId)) {
+    return false;
+  }
+
+  store.words.set(input.id, {
+    ...word,
+    voterIds: new Set([...word.voterIds, input.clientId]),
+  });
+
+  return true;
+}
+
+export function hideWord(id: string): boolean {
+  const word = store.words.get(id);
+
+  if (!word) {
+    return false;
+  }
+
+  store.words.set(id, { ...word, status: "hidden" });
+  return true;
+}
+
+export function mergeWord(sourceId: string, targetText: string): boolean {
+  const source = store.words.get(sourceId);
+  const normalizedTarget = normalizeWordKey(targetText);
+
+  if (!source || source.status === "hidden" || normalizedTarget.length < 2) {
+    return false;
+  }
+
+  const target = findWordByKey(normalizedTarget);
+
+  if (!target || target.id === source.id || target.status === "hidden") {
+    store.words.set(source.id, {
+      ...source,
+      text: normalizeWordDisplay(targetText),
+      normalizedText: normalizedTarget,
+    });
+    return true;
+  }
+
+  store.words.set(target.id, {
+    ...target,
+    submissionCount: target.submissionCount + source.submissionCount,
+    voterIds: new Set([...target.voterIds, ...source.voterIds]),
+    status: target.status === "approved" || source.status === "approved" ? "approved" : "pending",
+  });
+  store.words.set(source.id, { ...source, status: "hidden" });
+  return true;
+}
+
+export function endWordCloud(now = Date.now()): void {
+  store.wordCloudEndedAt = now;
+}
+
 export function chooseActiveQuestion(id: string): boolean {
   const selected = store.questions.get(id);
 
@@ -151,6 +312,8 @@ export function hideQuestion(id: string): boolean {
 
 export function resetPanel(): void {
   store.questions.clear();
+  store.words.clear();
+  store.wordCloudEndedAt = undefined;
 }
 
 export function listAudienceQuestions(clientId: string): PublicQuestion[] {
@@ -176,9 +339,35 @@ export function getActivePublicQuestion(): PublicQuestion | undefined {
   return active ? toPublicQuestion(active, "") : undefined;
 }
 
+export function listAudienceWords(clientId: string): PublicWord[] {
+  if (store.wordCloudEndedAt !== undefined) {
+    return [];
+  }
+
+  return sortWords([...store.words.values()].filter((word) => word.status === "approved")).map((word) => toPublicWord(word, clientId));
+}
+
+export function listModeratorWords(clientId: string): PublicWord[] {
+  return sortWords([...store.words.values()].filter((word) => word.status !== "hidden")).map((word) => toPublicWord(word, clientId));
+}
+
+export function listScreenWords(): PublicWord[] {
+  if (store.wordCloudEndedAt !== undefined) {
+    return [];
+  }
+
+  return sortWords([...store.words.values()].filter((word) => word.status === "approved")).map((word) => toPublicWord(word, ""));
+}
+
+export function wordCloudEnded(): boolean {
+  return store.wordCloudEndedAt !== undefined;
+}
+
 export function clearPanelStateForTests(): void {
   store.questions.clear();
+  store.words.clear();
   store.rateLimits.clear();
+  store.wordCloudEndedAt = undefined;
 }
 
 function getActiveQuestion(): PanelQuestion | undefined {
@@ -187,6 +376,18 @@ function getActiveQuestion(): PanelQuestion | undefined {
 
 function normalizeQuestion(text: string): string {
   return text.replaceAll(/\s+/g, " ").trim().slice(0, maximumQuestionLength);
+}
+
+function normalizeWordDisplay(text: string): string {
+  return text.replaceAll(/\s+/g, " ").trim().slice(0, maximumWordLength);
+}
+
+function normalizeWordKey(text: string): string {
+  return normalizeWordDisplay(text)
+    .toLocaleLowerCase("en")
+    .replaceAll(/^[^\p{Letter}\p{Number}]+|[^\p{Letter}\p{Number}]+$/gu, "")
+    .replaceAll(/[^\p{Letter}\p{Number}]+/gu, " ")
+    .trim();
 }
 
 function toPublicQuestion(question: PanelQuestion, clientId: string): PublicQuestion {
@@ -198,6 +399,16 @@ function toPublicQuestion(question: PanelQuestion, clientId: string): PublicQues
     votes: question.voterIds.size,
     status: question.status,
     votedByCurrentUser: question.voterIds.has(clientId),
+  };
+}
+
+function toPublicWord(word: PanelWord, clientId: string): PublicWord {
+  return {
+    id: word.id,
+    text: word.text,
+    count: word.submissionCount + word.voterIds.size,
+    status: word.status,
+    votedByCurrentUser: word.voterIds.has(clientId),
   };
 }
 
@@ -219,6 +430,22 @@ function sortQuestions(questions: PanelQuestion[]): PanelQuestion[] {
 
     return left.createdAt - right.createdAt;
   });
+}
+
+function sortWords(words: PanelWord[]): PanelWord[] {
+  return [...words].sort((left, right) => {
+    const countDifference = right.submissionCount + right.voterIds.size - (left.submissionCount + left.voterIds.size);
+
+    if (countDifference !== 0) {
+      return countDifference;
+    }
+
+    return left.createdAt - right.createdAt;
+  });
+}
+
+function findWordByKey(normalizedText: string): PanelWord | undefined {
+  return [...store.words.values()].find((word) => word.normalizedText === normalizedText);
 }
 
 function isRateLimited(key: string, maximum: number, windowMs: number, now: number): boolean {

@@ -6,7 +6,7 @@
 
 ## Context
 
-Future Frontend needs a small audience-question app for conference panels. The main alternatives are continuing to use a hosted service, adding a durable backend such as KV or D1, or building the smallest useful Worker-native version first.
+Future Frontend needs a small audience-question app for conference panels, including both moderated questions and lightweight word-cloud prompts. The main alternatives are continuing to use a hosted service, adding a durable backend such as KV or D1, or building the smallest useful Worker-native version first.
 
 The near-term requirement is low budget and operational simplicity. Attendees should not need accounts, and the UI should work well on mobile phones. MC and moderator access still needs a trust boundary, but the system does not currently need long-term analytics or historical question storage.
 
@@ -17,12 +17,12 @@ We will build the first version as a server-rendered Cloudflare Worker app with 
 The app uses:
 
 - plain HTML forms and redirects instead of client-side JavaScript
-- anonymous attendee cookies for one-vote-per-question behavior
-- IP-based throttling for question and vote submissions
+- anonymous attendee cookies for one-vote-per-question and one-vote-per-word behavior
+- IP-based throttling for question, word, and vote submissions
 - signed MC and moderator role cookies
 - `AUTH_SECRET`, `MC_PASSCODE`, and `MODERATOR_PASSCODE` environment variables for privileged access
 
-Question state is intentionally ephemeral. A moderator reset clears the panel, and a Worker isolate restart can also clear state.
+Question and word-cloud state are intentionally ephemeral. Duplicate submitted words increment the existing pending or approved entry. Moderators can approve, hide, merge, and end word clouds. Ending a word cloud stops attendee and screen visibility but keeps the word data visible to the moderator until reset, so the room can review lightweight analytics without adding durable storage. A moderator reset clears the panel, and a Worker isolate restart can also clear state.
 
 ## Trigger
 
@@ -34,12 +34,12 @@ The project is no longer only a starter Worker. It now hosts a real conference w
 
 - The app stays small, dependency-free, and easy to deploy.
 - The UI remains usable without a client build or browser JavaScript.
-- Attendees can ask questions anonymously without a sign-up funnel.
+- Attendees can ask questions and submit word-cloud words anonymously without a sign-up funnel.
 - MC and moderator roles have a concrete access boundary.
 
 **Negative:**
 
-- Questions are not durable across Worker isolate restarts or multi-instance execution.
+- Questions and ended word-cloud data are not durable across Worker isolate restarts or multi-instance execution.
 - In-memory IP throttling is best-effort and not a global abuse-control system.
 - The screen view refreshes by HTML refresh rather than live push updates.
 
