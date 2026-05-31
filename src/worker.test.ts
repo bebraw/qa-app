@@ -241,7 +241,11 @@ describe("worker", () => {
     );
 
     const modeResponse = await handleRequest(
-      new Request("http://example.com/moderator?mode=wordcloud", { headers: { cookie: moderatorCookie } }),
+      new Request("http://example.com/moderator/mode", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", cookie: moderatorCookie },
+        body: new URLSearchParams({ mode: "wordcloud" }),
+      }),
       env,
     );
     expect(modeResponse.status).toBe(303);
@@ -269,17 +273,21 @@ describe("worker", () => {
     expect(moderatorWordHtml).toContain("Mode");
     expect(moderatorWordHtml).not.toContain("No questions to moderate.");
 
-    await expect(
-      handleRequest(new Request("http://example.com/moderator/mode", { headers: { cookie: moderatorCookie } }), env).then((response) =>
-        response.headers.get("location"),
-      ),
-    ).resolves.toBe("/moderator");
-    await expect(handleRequest(new Request("http://example.com/live")).then((response) => response.text())).resolves.toContain(
-      "Ask a question",
+    const getModeResponse = await handleRequest(
+      new Request("http://example.com/moderator/mode?mode=qa", { headers: { cookie: moderatorCookie } }),
+      env,
     );
-
-    await handleRequest(new Request("http://example.com/moderator/mode?mode=wordcloud", { headers: { cookie: moderatorCookie } }), env);
+    expect(getModeResponse.status).toBe(404);
     await expect(handleRequest(new Request("http://example.com/live")).then((response) => response.text())).resolves.toContain("Add word");
+
+    const getQueryResponse = await handleRequest(
+      new Request("http://example.com/moderator?mode=qa", { headers: { cookie: moderatorCookie } }),
+      env,
+    );
+    expect(getQueryResponse.status).toBe(200);
+    await expect(handleRequest(new Request("http://example.com/live")).then((response) => response.text())).resolves.toContain(
+      "Add word",
+    );
 
     await handleRequest(
       new Request("http://example.com/moderator/mode", {

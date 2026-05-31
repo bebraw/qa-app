@@ -214,11 +214,6 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
   if (url.pathname === "/moderator") {
     const auth = await readAuthState(request, env);
 
-    if (auth.role === "moderator" && url.searchParams.has("mode")) {
-      setPanelMode(readPanelMode(url.searchParams.get("mode") ?? ""));
-      return redirectResponse("/moderator", attendeeCookieHeaders);
-    }
-
     return htmlResponse(
       renderModeratorPage({
         mode: getPanelMode(),
@@ -231,17 +226,6 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
       200,
       attendeeCookieHeaders,
     );
-  }
-
-  if (url.pathname === "/moderator/mode") {
-    const auth = await readAuthState(request, env);
-
-    if (auth.role !== "moderator") {
-      return redirectResponse(withNotice("/moderator", "Sign in first."), attendeeCookieHeaders);
-    }
-
-    setPanelMode(readPanelMode(url.searchParams.get("mode") ?? ""));
-    return redirectResponse("/moderator", attendeeCookieHeaders);
   }
 
   if (url.pathname === "/moderator/live") {
@@ -588,7 +572,6 @@ function shouldUsePanelRoom(pathname: string, method: string): boolean {
     pathname === "/mc" ||
     pathname === "/mc/live" ||
     pathname === "/moderator" ||
-    pathname === "/moderator/mode" ||
     pathname === "/moderator/live" ||
     pathname === "/moderator/questions/live" ||
     pathname === "/moderator/words/live" ||
@@ -599,14 +582,7 @@ function shouldUsePanelRoom(pathname: string, method: string): boolean {
 }
 
 function changesPanelState(request: Request): boolean {
-  if (request.method === "POST") {
-    return true;
-  }
-
-  const url = new URL(request.url);
-  return (
-    request.method === "GET" && ((url.pathname === "/moderator" && url.searchParams.has("mode")) || url.pathname === "/moderator/mode")
-  );
+  return request.method === "POST";
 }
 
 async function fetchPanelRoom(request: Request, namespace: PanelDurableObjectNamespace): Promise<Response> {

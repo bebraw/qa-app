@@ -16,7 +16,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 - **Views:** `src/views/panel.ts` renders server-side HTML for attendee, MC, moderator, and audience-screen views.
 - **Visual system:** Panel views use black-and-white UI tokens, the bundled Finlandica Headline font, and compact labels instead of explanatory helper text.
 - **Client behavior:** Forms post to Worker routes and redirect back to the relevant view. Attendee, MC, moderator, and word-screen views also load the typed `/panel-live.js` module, which polls HTML fragments and replaces the relevant list so newly submitted, approved, or voted content appears without a manual refresh.
-- **Mode model:** The shared room defaults to QA mode. Moderator mode actions post to `/moderator/mode` with `qa` or `wordcloud`; missing or invalid mode values fall back to QA.
+- **Mode model:** The shared room defaults to QA mode. Moderator mode actions must use authenticated POST requests to `/moderator/mode` with `qa` or `wordcloud`; missing or invalid mode values fall back to QA.
 - **Persistence:** Panel state is coordinated through a SQLite-backed Cloudflare Durable Object room so attendees, MC, moderator, and screen views share one authoritative state across Worker isolates. Ended word-cloud data remains visible to the moderator until reset for lightweight analytics review.
 - **Rate limiting:** Question and word creation are throttled by client IP. Vote submissions are also throttled by IP, and each anonymous attendee cookie can vote once per question or approved word.
 
@@ -61,6 +61,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 - MC and moderator role cookies must be signed with `AUTH_SECRET` and use separate cookie names so both roles can stay signed in in different tabs of the same browser.
 - Role views must remain inaccessible when passcodes or `AUTH_SECRET` are not configured.
 - Missing or invalid moderator mode values must resolve to QA mode.
+- GET requests must not change moderator-selected mode or any other panel state.
 - Word-cloud controls must not be visible in `/moderator` while the room is in QA mode.
 - Question moderation controls must not be visible in `/moderator` while the room is in wordcloud mode.
 - Hidden and done questions must not appear in the attendee queue.
