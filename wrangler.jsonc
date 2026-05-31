@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "vibe-template-worker",
+  "name": "qa-app",
   "main": "src/worker.ts",
   "compatibility_date": "2026-03-28",
   "build": {
