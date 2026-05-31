@@ -4,6 +4,7 @@ import { refreshRegion, startLiveUpdates } from "./panel-live";
 interface TestRegion extends HTMLElement {
   dataset: DOMStringMap & {
     liveSrc?: string;
+    liveRefreshWhenFocused?: string;
   };
   innerHTML: string;
 }
@@ -90,6 +91,29 @@ describe("panel live updates", () => {
 
     expect(region.contains).toHaveBeenCalledWith(activeElement);
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("refreshes focused regions that opt in", async () => {
+    const region = {
+      ...createRegion("/mc/live", "old"),
+      contains: vi.fn(() => true),
+    } as unknown as TestRegion;
+    region.dataset.liveRefreshWhenFocused = "true";
+    const activeElement = {} as Element;
+    const fetch = vi.fn<typeof globalThis.fetch>(async () => new Response("new"));
+    vi.stubGlobal("fetch", fetch);
+    vi.stubGlobal("Element", class TestElement {});
+    Object.setPrototypeOf(activeElement, Element.prototype);
+    vi.stubGlobal("document", { activeElement, hidden: false });
+
+    await refreshRegion(region);
+
+    expect(region.contains).not.toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalledWith("/mc/live", {
+      headers: { accept: "text/html" },
+      cache: "no-store",
+    });
+    expect(region.innerHTML).toBe("new");
   });
 
   it("uses the interval callback to refresh regions", async () => {

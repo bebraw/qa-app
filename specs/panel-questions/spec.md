@@ -46,6 +46,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 - [ ] Moderator mode defaults to QA and can switch between QA and word-cloud mode without 404s.
 - [ ] `/moderator` shows question moderation only in QA mode and word-cloud moderation only in wordcloud mode.
 - [ ] MC and moderator queues show new submissions and vote counts without a manual browser refresh.
+- [ ] The MC queue keeps polling while focus is inside its action area so newly approved questions still appear for the MC.
 - [ ] `GET /screen` shows only the currently active question selected by the MC.
 - [ ] `GET /words/screen` shows only approved word-cloud entries while the word cloud is open.
 - [ ] Approved word-cloud entries appear on already-open attendee word and word-screen pages without a manual browser refresh.
@@ -64,6 +65,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 - Pending questions must not appear in the attendee queue, MC queue, or question screen.
 - Approved questions must appear on already-open attendee question pages without a manual browser refresh.
 - MC and moderator queues must update when other attendees submit, vote, or when another operator changes moderation state.
+- Focus on an MC queue action must not prevent the MC queue from receiving live updates.
 - Pending and hidden word-cloud entries must not appear in the attendee word view or word screen.
 - Approved word-cloud entries must appear on already-open attendee word and word-screen pages without a manual browser refresh.
 - Panel state routes must use the `PANEL_ROOM` Durable Object binding when it is configured.

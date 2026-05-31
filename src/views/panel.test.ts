@@ -90,7 +90,7 @@ describe("panel views", () => {
   it("renders MC and moderator queues with role-specific actions", () => {
     const mcHtml = renderMcPage({
       mode: "qa",
-      questions: [availableQuestion],
+      questions: [availableQuestion, activeQuestion],
       words: [],
       wordCloudEnded: false,
       auth: { configured: true, role: "mc" },
@@ -114,7 +114,11 @@ describe("panel views", () => {
     expect(mcHtml).toContain('action="/mc/done"');
     expect(mcHtml).toContain('<script src="/panel-live.js" type="module"></script>');
     expect(mcHtml).toContain('data-live-src="/mc/live"');
+    expect(mcHtml).toContain('data-live-refresh-when-focused="true"');
     expect(mcHtml).toContain(">Ask</button>");
+    expect(mcHtml).toContain(">Mark as done</button>");
+    expect(mcHtml).toContain('type="submit" disabled>Mark as done</button>');
+    expect(mcHtml).toContain('type="submit" >Mark as done</button>');
     expect(mcHtml).toContain("bg-app-text text-white hover:bg-app-accent-strong");
     expect(moderatorHtml).toContain('<script src="/panel-live.js" type="module"></script>');
     expect(moderatorHtml).toContain('data-live-src="/moderator/live"');

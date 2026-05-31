@@ -3,6 +3,7 @@ const pollIntervalMs = 2_000;
 interface LiveRegion extends HTMLElement {
   readonly dataset: DOMStringMap & {
     readonly liveSrc?: string;
+    readonly liveRefreshWhenFocused?: string;
   };
 }
 
@@ -20,7 +21,7 @@ export function startLiveUpdates(root: ParentNode = document): void {
 export async function refreshRegion(region: LiveRegion): Promise<void> {
   const source = region.dataset.liveSrc;
 
-  if (!source || document.hidden || focusedWithin(region)) {
+  if (!source || document.hidden || shouldPreserveFocusedRegion(region)) {
     return;
   }
 
@@ -51,4 +52,8 @@ function focusedWithin(region: LiveRegion): boolean {
 
   const activeElement = document.activeElement;
   return activeElement instanceof Element && region.contains(activeElement);
+}
+
+function shouldPreserveFocusedRegion(region: LiveRegion): boolean {
+  return region.dataset.liveRefreshWhenFocused !== "true" && focusedWithin(region);
 }

@@ -115,7 +115,7 @@ export function renderMcPage(view: RoleViewModel): string {
 }
 
 export function renderMcQuestionsFragment(questions: PublicQuestion[]): string {
-  return `<section class="space-y-3" aria-label="Questions for MC" data-live-region="mc-questions" data-live-src="/mc/live">
+  return `<section class="space-y-3" aria-label="Questions for MC" data-live-region="mc-questions" data-live-src="/mc/live" data-live-refresh-when-focused="true">
     ${renderMcQuestionsContent(questions)}
   </section>`;
 }
@@ -415,8 +415,13 @@ function actions(question: PublicQuestion, role: "attendee" | "mc" | "moderator"
   }
 
   if (role === "mc") {
+    const doneButtonClass =
+      question.status === "active"
+        ? "border-app-line bg-white text-app-text-soft hover:text-app-text"
+        : "border-app-line bg-app-surface text-app-text-soft opacity-55";
+
     return `${actionButton("/mc/select", question.id, "Ask", "bg-app-text text-white hover:bg-app-accent-strong")}
-      <form method="post" action="/mc/done"><button class="h-10 rounded-lg border border-app-line bg-white px-4 text-sm font-semibold text-app-text-soft hover:text-app-text" type="submit">Done</button></form>`;
+      <form method="post" action="/mc/done"><button class="h-10 rounded-lg border px-4 text-sm font-semibold ${doneButtonClass}" type="submit" ${question.status === "active" ? "" : "disabled"}>Mark as done</button></form>`;
   }
 
   const approveButton =
