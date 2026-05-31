@@ -4,19 +4,19 @@
 
 ### Context
 
-Future Frontend sessions need a low-budget replacement for hosted audience-question tools. Attendees should be able to ask questions, submit word-cloud words, and vote without sign-in, while the MC and moderator need protected views for selecting, hiding, merging, ending, and resetting content during a conference panel.
+Future Frontend sessions need a low-budget replacement for hosted audience-question tools. Attendees should be able to ask questions, submit word-cloud words, and vote without sign-in, while the MC and moderator need protected views for approving, selecting, hiding, merging, ending, and resetting content during a conference panel.
 
-The first implementation should stay lightweight enough to run inside the existing Worker template without adding a database, client framework, or third-party service.
+The implementation should stay lightweight enough to run inside the existing Worker template without adding a client framework or third-party service.
 
 ### Architecture
 
-- **Entry points:** `src/worker.ts` routes panel requests.
-- **State model:** `src/panel/state.ts` stores questions, word-cloud entries, votes, active selection, hidden status, done status, ended word-cloud status, and in-memory rate-limit buckets.
+- **Entry points:** `src/worker.ts` routes panel requests and forwards panel state routes to the `PanelRoom` Durable Object when the `PANEL_ROOM` binding is available.
+- **State model:** `src/panel/state.ts` stores questions, word-cloud entries, votes, active selection, hidden status, done status, ended word-cloud status, and rate-limit buckets for the active room.
 - **Auth model:** `src/panel/auth.ts` signs role cookies with `AUTH_SECRET`; MC and moderator passcodes come from `MC_PASSCODE` and `MODERATOR_PASSCODE`.
 - **Views:** `src/views/panel.ts` renders server-side HTML for attendee, MC, moderator, and audience-screen views.
 - **Visual system:** Panel views use black-and-white UI tokens, the bundled Finlandica Headline font, and compact labels instead of explanatory helper text.
-- **Client behavior:** No browser JavaScript is required. Forms post to Worker routes and redirect back to the relevant view.
-- **Persistence:** Panel state is intentionally in-memory for this version. It resets when the Worker isolate restarts and is not a multi-instance durable store. Ended word-cloud data remains visible to the moderator until reset for lightweight analytics review.
+- **Client behavior:** Forms post to Worker routes and redirect back to the relevant view. The attendee question, attendee word, and word-screen views also load the typed `/panel-live.js` module, which polls HTML fragments and replaces the relevant list so newly approved content appears without a manual refresh.
+- **Persistence:** Panel state is coordinated through a SQLite-backed Cloudflare Durable Object room so attendees, MC, moderator, and screen views share one authoritative state across Worker isolates. Ended word-cloud data remains visible to the moderator until reset for lightweight analytics review.
 - **Rate limiting:** Question and word creation are throttled by client IP. Vote submissions are also throttled by IP, and each anonymous attendee cookie can vote once per question or approved word.
 
 ### Anti-Patterns
@@ -24,7 +24,7 @@ The first implementation should stay lightweight enough to run inside the existi
 - Do not require attendee authentication for asking or voting.
 - Do not put MC or moderator passcodes in source files.
 - Do not add inline browser JavaScript to make the queue feel live.
-- Do not treat in-memory state as durable conference history.
+- Do not bypass the `PanelRoom` Durable Object for panel state in deployed multiplayer flows.
 - Do not expose hidden or done questions to attendees or the audience screen.
 - Do not expose pending or hidden word-cloud entries to attendees or the audience screen.
 
@@ -33,16 +33,18 @@ The first implementation should stay lightweight enough to run inside the existi
 ### Definition of Done
 
 - [ ] `GET /` renders the attendee question view.
-- [ ] Attendees can add anonymous questions.
+- [ ] Attendees can add anonymous questions that remain pending until moderator approval.
 - [ ] Attendees can submit anonymous word-cloud words.
 - [ ] Attendees can vote once per question and can vote on multiple questions.
 - [ ] Attendees can vote once per approved word-cloud word and can vote on multiple words.
 - [ ] Question creation is IP-throttled to reduce flooding.
 - [ ] Duplicate submitted words auto-increment the matching pending or approved word instead of creating another moderation item.
 - [ ] `GET /mc` requires the MC passcode and lets the MC select the active question or mark it done.
-- [ ] `GET /moderator` requires the moderator passcode and lets the moderator add, vote on, hide, merge, end, and reset content.
+- [ ] `GET /moderator` requires the moderator passcode and lets the moderator approve, add, vote on, hide, merge, end, and reset content.
 - [ ] `GET /screen` shows only the currently active question selected by the MC.
 - [ ] `GET /words/screen` shows only approved word-cloud entries while the word cloud is open.
+- [ ] Approved word-cloud entries appear on already-open attendee word and word-screen pages without a manual browser refresh.
+- [ ] Deployed panel state is coordinated through the `PANEL_ROOM` Durable Object binding.
 - [ ] The feature is covered by unit tests and browser-visible smoke tests.
 
 ### Regression Guardrails
@@ -51,7 +53,11 @@ The first implementation should stay lightweight enough to run inside the existi
 - MC and moderator role cookies must be signed with `AUTH_SECRET`.
 - Role views must remain inaccessible when passcodes or `AUTH_SECRET` are not configured.
 - Hidden and done questions must not appear in the attendee queue.
+- Pending questions must not appear in the attendee queue, MC queue, or question screen.
+- Approved questions must appear on already-open attendee question pages without a manual browser refresh.
 - Pending and hidden word-cloud entries must not appear in the attendee word view or word screen.
+- Approved word-cloud entries must appear on already-open attendee word and word-screen pages without a manual browser refresh.
+- Panel state routes must use the `PANEL_ROOM` Durable Object binding when it is configured.
 - Moderator word merges must support exact normalized matches and manually chosen variants such as different casing, punctuation, or alternate words.
 - Ending word-cloud mode must stop attendee/screen visibility while keeping data visible to the moderator until reset.
 - The screen view must not show anything except the active question or an empty waiting state.
@@ -71,7 +77,13 @@ The first implementation should stay lightweight enough to run inside the existi
 
 - Given: the panel app is open
 - When: an attendee submits a valid question
-- Then: the question appears in the attendee queue and receives the submitter's initial vote
+- Then: the question appears in the moderator queue as pending and receives the submitter's initial vote
+
+**Scenario: Moderator approves an attendee question**
+
+- Given: an attendee question is pending
+- When: the moderator approves it
+- Then: the question appears in attendee queues, including already-open attendee pages after the live poll updates
 
 **Scenario: Attendee voting is limited**
 
@@ -84,6 +96,12 @@ The first implementation should stay lightweight enough to run inside the existi
 - Given: a word-cloud entry already exists as pending or approved
 - When: another attendee submits the same normalized word
 - Then: the existing entry count increments without creating a separate approval item
+
+**Scenario: Moderator approves a word-cloud entry**
+
+- Given: a word-cloud entry is pending
+- When: the moderator approves it
+- Then: the word appears in attendee word views and on the word screen, including already-open pages after the live poll updates
 
 **Scenario: Moderator merges word variants**
 

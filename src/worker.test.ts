@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { PanelEnv } from "./panel/auth";
 import { clearPanelStateForTests } from "./panel/state";
-import worker, { handleRequest } from "./worker";
+import worker, { PanelRoom, handleRequest, type PanelWorkerEnv } from "./worker";
 import { ensureGeneratedStylesheet } from "./test-support";
 
 ensureGeneratedStylesheet();
@@ -41,14 +41,39 @@ describe("worker", () => {
     );
 
     expect(submitResponse.status).toBe(303);
-    expect(submitResponse.headers.get("location")).toContain("Question+added");
+    expect(submitResponse.headers.get("location")).toContain("Question+sent");
 
     const pageResponse = await handleRequest(new Request("http://example.com/"));
     const page = await pageResponse.text();
-    expect(page).toContain("What does durable frontend architecture mean in practice?");
-    expect(page).toContain("+1");
+    expect(page).not.toContain("What does durable frontend architecture mean in practice?");
 
-    const questionId = /name="questionId" value="([^"]+)"/u.exec(page)?.[1] ?? "";
+    const moderatorLogin = await handleRequest(
+      new Request("http://example.com/moderator/login", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ passcode: "mod-passcode" }),
+      }),
+      env,
+    );
+    const moderatorCookie = moderatorLogin.headers.get("set-cookie") ?? "";
+    const moderatorHtml = await handleRequest(
+      new Request("http://example.com/moderator", { headers: { cookie: moderatorCookie } }),
+      env,
+    ).then((response) => response.text());
+    const questionId = /name="questionId" value="([^"]+)"/u.exec(moderatorHtml)?.[1] ?? "";
+    expect(moderatorHtml).toContain("Pending");
+    await handleRequest(
+      new Request("http://example.com/moderator/approve", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", cookie: moderatorCookie },
+        body: new URLSearchParams({ questionId }),
+      }),
+      env,
+    );
+    await expect(handleRequest(new Request("http://example.com/questions/live")).then((response) => response.text())).resolves.toContain(
+      "What does durable frontend architecture mean in practice?",
+    );
+
     const attendeeCookie = pageResponse.headers.get("set-cookie") ?? "";
     const voteResponse = await handleRequest(
       new Request("http://example.com/vote", {
@@ -114,6 +139,12 @@ describe("worker", () => {
     const wordHtml = await wordPage.text();
     const attendeeCookie = wordPage.headers.get("set-cookie") ?? "";
     expect(wordHtml).toContain("Great! 2");
+    await expect(handleRequest(new Request("http://example.com/words/live")).then((response) => response.text())).resolves.toContain(
+      "Great! 2",
+    );
+    await expect(handleRequest(new Request("http://example.com/words/screen/live")).then((response) => response.text())).resolves.toContain(
+      "Great!",
+    );
 
     await handleRequest(
       new Request("http://example.com/words/vote", {
@@ -148,6 +179,46 @@ describe("worker", () => {
         response.text(),
       ),
     ).resolves.toContain("Great!");
+  });
+
+  it("routes panel state through the durable object room binding", async () => {
+    const storage = new Map<string, unknown>();
+    let room = createTestPanelRoom(storage);
+    const durableEnv: PanelWorkerEnv = {
+      ...env,
+      PANEL_ROOM: {
+        idFromName: () => "default",
+        get: () => ({ fetch: async (request) => await room.fetch(request) }),
+      },
+    };
+
+    await handleRequest(
+      new Request("http://example.com/", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "198.51.100.31" },
+        body: new URLSearchParams({ question: "Can everyone see the same approved queue now?" }),
+      }),
+      durableEnv,
+    );
+    clearPanelStateForTests();
+    room = createTestPanelRoom(storage);
+
+    const moderatorLogin = await handleRequest(
+      new Request("http://example.com/moderator/login", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ passcode: "mod-passcode" }),
+      }),
+      durableEnv,
+    );
+    const moderatorCookie = moderatorLogin.headers.get("set-cookie") ?? "";
+    const moderatorHtml = await handleRequest(
+      new Request("http://example.com/moderator", { headers: { cookie: moderatorCookie } }),
+      durableEnv,
+    ).then((response) => response.text());
+
+    expect(moderatorHtml).toContain("Can everyone see the same approved queue now?");
+    expect(moderatorHtml).toContain("Pending");
   });
 
   it("redirects unknown posts and protected actions safely", async () => {
@@ -258,6 +329,14 @@ describe("worker", () => {
     const questionId = /name="questionId" value="([^"]+)"/u.exec(moderatorHtml)?.[1] ?? "";
 
     expect(questionId).not.toBe("");
+    await handleRequest(
+      new Request("http://example.com/moderator/approve", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", cookie: moderatorCookie },
+        body: new URLSearchParams({ questionId }),
+      }),
+      env,
+    );
 
     const mcLogin = await handleRequest(
       new Request("http://example.com/mc/login", {
@@ -387,6 +466,14 @@ describe("worker", () => {
     await expect(response.text()).resolves.toContain("--color-app-canvas:#fff");
   });
 
+  it("serves the generated live-update script", async () => {
+    const response = await handleRequest(new Request("http://example.com/panel-live.js"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("text/javascript; charset=utf-8");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
   it("serves the bundled Finlandica font", async () => {
     const response = await handleRequest(new Request("http://example.com/fonts/FinlandicaHeadline-Regular.ttf"));
 
@@ -396,3 +483,17 @@ describe("worker", () => {
     expect((await response.arrayBuffer()).byteLength).toBeGreaterThan(100_000);
   });
 });
+
+function createTestPanelRoom(storage: Map<string, unknown>): PanelRoom {
+  return new PanelRoom(
+    {
+      storage: {
+        get: async <T>(key: string): Promise<T | undefined> => storage.get(key) as T | undefined,
+        put: async <T>(key: string, value: T): Promise<void> => {
+          storage.set(key, value);
+        },
+      },
+    },
+    env,
+  );
+}

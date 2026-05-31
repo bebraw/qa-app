@@ -9,7 +9,7 @@ const ignoredFilePatterns = [/\.test\.ts$/, /\.e2e\.ts$/, /\.d\.ts$/];
 const disallowedPatterns = [
   {
     name: "inline <script> tag",
-    pattern: /<script(?:\s|>|\/)/giu,
+    pattern: /<script(?![^>]*\ssrc=)(?:\s|>|\/)/giu,
   },
   {
     name: "inline event handler attribute",

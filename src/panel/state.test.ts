@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  approveQuestion,
   chooseActiveQuestion,
   clearPanelStateForTests,
   approveWord,
@@ -50,11 +51,15 @@ describe("panel state", () => {
     expect(second.ok).toBe(true);
     expect(voteForQuestion({ id: second.question?.id ?? "", clientId: "attendee-2", ipAddress: "198.51.100.3", now: 3 })).toBe(true);
     expect(voteForQuestion({ id: second.question?.id ?? "", clientId: "attendee-2", ipAddress: "198.51.100.3", now: 4 })).toBe(false);
+    expect(voteForQuestion({ id: first.question?.id ?? "", clientId: "attendee-2", ipAddress: "198.51.100.3", now: 5 })).toBe(false);
 
     expect(listAudienceQuestions("attendee-2").map((question) => [question.text, question.votes, question.votedByCurrentUser])).toEqual([
       ["How should designers and developers share ownership?", 2, true],
-      ["What should teams stop doing with frontend architecture?", 1, false],
     ]);
+    expect(approveQuestion(first.question?.id ?? "")).toBe(true);
+    expect(listAudienceQuestions("attendee-2").map((question) => question.text)).toContain(
+      "What should teams stop doing with frontend architecture?",
+    );
   });
 
   it("rate limits question submissions by IP address", () => {
@@ -153,7 +158,7 @@ describe("panel state", () => {
     clearPanelStateForTests();
     const doneQuestion = proposeQuestion({
       text: "What should be treated as production ready?",
-      role: "attendee",
+      role: "moderator",
       clientId: "attendee-1",
       ipAddress: "198.51.100.1",
       now: 1,
@@ -167,7 +172,7 @@ describe("panel state", () => {
     clearPanelStateForTests();
     const limitedQuestion = proposeQuestion({
       text: "What should the room vote on?",
-      role: "attendee",
+      role: "moderator",
       clientId: "attendee-1",
       ipAddress: "198.51.100.1",
       now: 1,
@@ -196,7 +201,7 @@ describe("panel state", () => {
   it("moves active, hidden, done, and reset questions through moderator and MC workflows", () => {
     const question = proposeQuestion({
       text: "Which platform bets are worth making now?",
-      role: "attendee",
+      role: "moderator",
       clientId: "attendee-1",
       ipAddress: "198.51.100.1",
       now: 1,
@@ -210,7 +215,7 @@ describe("panel state", () => {
     vi.mocked(globalThis.crypto.randomUUID).mockReturnValue("00000000-0000-4000-8000-000000000002");
     const nextQuestion = proposeQuestion({
       text: "Which architecture bets should come next?",
-      role: "attendee",
+      role: "moderator",
       clientId: "attendee-3",
       ipAddress: "198.51.100.3",
       now: 3,
@@ -227,7 +232,7 @@ describe("panel state", () => {
     resetPanel();
     const hidden = proposeQuestion({
       text: "Question that should not be shown to the room",
-      role: "attendee",
+      role: "moderator",
       clientId: "attendee-2",
       ipAddress: "198.51.100.2",
       now: 2,
@@ -240,6 +245,45 @@ describe("panel state", () => {
 
     resetPanel();
     expect(listModeratorQuestions("moderator-1")).toEqual([]);
+  });
+
+  it("keeps attendee questions pending until moderator approval", () => {
+    const question = proposeQuestion({
+      text: "Should this become visible only after moderation?",
+      role: "attendee",
+      clientId: "attendee-1",
+      ipAddress: "198.51.100.1",
+      now: 1,
+    }).question;
+
+    expect(question?.status).toBe("pending");
+    expect(listAudienceQuestions("attendee-2")).toEqual([]);
+    expect(listModeratorQuestions("moderator-1").map((entry) => entry.status)).toEqual(["pending"]);
+    expect(chooseActiveQuestion(question?.id ?? "")).toBe(false);
+    expect(approveQuestion(question?.id ?? "")).toBe(true);
+    expect(approveQuestion(question?.id ?? "")).toBe(false);
+    expect(listAudienceQuestions("attendee-2").map((entry) => entry.status)).toEqual(["available"]);
+  });
+
+  it("keeps active questions first even when selected after another question", () => {
+    const first = proposeQuestion({
+      text: "Which question should stay below the active one?",
+      role: "moderator",
+      clientId: "moderator-1",
+      ipAddress: "198.51.100.1",
+      now: 1,
+    }).question;
+    vi.mocked(globalThis.crypto.randomUUID).mockReturnValue("00000000-0000-4000-8000-000000000002");
+    const second = proposeQuestion({
+      text: "Which question should become active?",
+      role: "moderator",
+      clientId: "moderator-1",
+      ipAddress: "198.51.100.1",
+      now: 2,
+    }).question;
+
+    expect(chooseActiveQuestion(second?.id ?? "")).toBe(true);
+    expect(listAudienceQuestions("attendee-1").map((entry) => entry.id)).toEqual([second?.id, first?.id]);
   });
 
   it("auto-increments duplicate words and keeps new words pending", () => {
@@ -303,6 +347,57 @@ describe("panel state", () => {
 
     expect(listModeratorWords("moderator-1").map((word) => [word.text, word.count, word.status])).toEqual([["great", 3, "approved"]]);
     expect(mergeWord("missing", "great")).toBe(false);
+  });
+
+  it("sorts approved words by count and hides pending words from the screen", () => {
+    const first = submitWord({
+      text: "Readable",
+      clientId: "attendee-1",
+      ipAddress: "198.51.100.1",
+      now: 1,
+    }).word;
+    vi.mocked(globalThis.crypto.randomUUID).mockReturnValue("00000000-0000-4000-8000-000000000002");
+    const second = submitWord({
+      text: "Durable",
+      clientId: "attendee-2",
+      ipAddress: "198.51.100.2",
+      now: 2,
+    }).word;
+    vi.mocked(globalThis.crypto.randomUUID).mockReturnValue("00000000-0000-4000-8000-000000000003");
+    submitWord({
+      text: "Pending",
+      clientId: "attendee-3",
+      ipAddress: "198.51.100.3",
+      now: 3,
+    });
+
+    expect(approveWord(first?.id ?? "")).toBe(true);
+    expect(approveWord(second?.id ?? "")).toBe(true);
+    expect(voteForWord({ id: second?.id ?? "", clientId: "attendee-4", ipAddress: "198.51.100.4", now: 4 })).toBe(true);
+
+    expect(listScreenWords().map((word) => word.text)).toEqual(["Durable", "Readable"]);
+    expect(listScreenWords().map((word) => word.text)).not.toContain("Pending");
+  });
+
+  it("normalizes and truncates word display values", () => {
+    const word = submitWord({
+      text: `  ${"Long ".repeat(20)}  `,
+      clientId: "attendee-1",
+      ipAddress: "198.51.100.1",
+      now: 1,
+    }).word;
+
+    expect(word?.text).toHaveLength(40);
+    expect(word?.text.startsWith(" ")).toBe(false);
+    expect(word?.text).not.toContain("  ");
+    expect(
+      submitWord({
+        text: "ok",
+        clientId: "attendee-2",
+        ipAddress: "198.51.100.2",
+        now: 2,
+      }).ok,
+    ).toBe(true);
   });
 
   it("keeps ended word cloud data visible to moderator until reset", () => {

@@ -26,6 +26,13 @@ const hiddenQuestion: PublicQuestion = {
   text: "Hidden question",
 };
 
+const pendingQuestion: PublicQuestion = {
+  ...availableQuestion,
+  id: "question-4",
+  status: "pending",
+  text: "Pending question",
+};
+
 const approvedWord: PublicWord = {
   id: "word-1",
   text: "Readable",
@@ -48,6 +55,8 @@ describe("panel views", () => {
 
     expect(html).not.toContain("Stryker was here!");
     expect(html).toContain("<title>Future Frontend Panels</title>");
+    expect(html).toContain('<script src="/panel-live.js" type="module"></script>');
+    expect(html).toContain('data-live-src="/questions/live"');
     expect(html).toContain("bg-app-canvas text-app-text");
     expect(html).toContain("Question added.");
     expect(html).toContain("How do we keep frontend systems understandable?");
@@ -93,15 +102,31 @@ describe("panel views", () => {
     expect(moderatorHtml).not.toContain("Stryker was here!");
   });
 
+  it("renders pending question approval controls for moderator", () => {
+    const moderatorHtml = renderModeratorPage({
+      questions: [pendingQuestion],
+      auth: { configured: true, role: "moderator" },
+    });
+
+    expect(moderatorHtml).toContain("Pending question");
+    expect(moderatorHtml).toContain("Pending");
+    expect(moderatorHtml).toContain('action="/moderator/approve"');
+    expect(moderatorHtml).not.toContain('action="/moderator/vote"');
+  });
+
   it("renders word cloud attendee and screen views", () => {
     const wordHtml = renderWordPage({ words: [approvedWord], notice: "Word counted." });
 
     expect(wordHtml).toContain("<title>Words - Future Frontend Panels</title>");
+    expect(wordHtml).toContain('<script src="/panel-live.js" type="module"></script>');
+    expect(wordHtml).toContain('data-live-src="/words/live"');
     expect(wordHtml).toContain("Word counted.");
     expect(wordHtml).toContain('action="/words"');
     expect(wordHtml).toContain('action="/words/vote"');
     expect(wordHtml).toContain("Readable 4");
     expect(renderWordScreenPage([approvedWord])).toContain("Readable");
+    expect(renderWordScreenPage([approvedWord])).toContain('data-live-src="/words/screen/live"');
+    expect(renderWordScreenPage([approvedWord])).not.toContain('http-equiv="refresh"');
     expect(renderWordScreenPage([])).toContain("Waiting.");
   });
 

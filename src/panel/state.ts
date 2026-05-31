@@ -1,6 +1,6 @@
 export type PanelRole = "attendee" | "mc" | "moderator";
 
-export type QuestionStatus = "available" | "active" | "done" | "hidden";
+export type QuestionStatus = "pending" | "available" | "active" | "done" | "hidden";
 
 export type WordStatus = "pending" | "approved" | "hidden";
 
@@ -64,6 +64,32 @@ interface PanelStore {
   wordCloudEndedAt: number | undefined;
 }
 
+interface SerializedQuestion {
+  readonly id: string;
+  readonly text: string;
+  readonly proposedBy: PanelRole;
+  readonly createdAt: number;
+  readonly voterIds: string[];
+  readonly status: QuestionStatus;
+}
+
+interface SerializedWord {
+  readonly id: string;
+  readonly text: string;
+  readonly normalizedText: string;
+  readonly createdAt: number;
+  readonly submissionCount: number;
+  readonly voterIds: string[];
+  readonly status: WordStatus;
+}
+
+export interface SerializedPanelState {
+  readonly questions: SerializedQuestion[];
+  readonly words: SerializedWord[];
+  readonly rateLimits: ReadonlyArray<readonly [string, number[]]>;
+  readonly wordCloudEndedAt?: number | undefined;
+}
+
 const store: PanelStore = {
   questions: new Map(),
   words: new Map(),
@@ -105,14 +131,14 @@ export function proposeQuestion(input: {
     proposedBy: input.role,
     createdAt: now,
     voterIds: new Set([input.clientId]),
-    status: "available",
+    status: input.role === "moderator" ? "available" : "pending",
   };
 
   store.questions.set(id, question);
 
   return {
     ok: true,
-    message: "Question added.",
+    message: input.role === "moderator" ? "Question added." : "Question sent.",
     question: toPublicQuestion(question, input.clientId),
   };
 }
@@ -131,7 +157,13 @@ export function voteForQuestion(input: {
 
   const question = store.questions.get(input.id);
 
-  if (!question || question.status === "hidden" || question.status === "done" || question.voterIds.has(input.clientId)) {
+  if (
+    !question ||
+    question.status === "pending" ||
+    question.status === "hidden" ||
+    question.status === "done" ||
+    question.voterIds.has(input.clientId)
+  ) {
     return false;
   }
 
@@ -140,6 +172,17 @@ export function voteForQuestion(input: {
     voterIds: new Set([...question.voterIds, input.clientId]),
   });
 
+  return true;
+}
+
+export function approveQuestion(id: string): boolean {
+  const question = store.questions.get(id);
+
+  if (!question || question.status !== "pending") {
+    return false;
+  }
+
+  store.questions.set(id, { ...question, status: "available" });
   return true;
 }
 
@@ -274,7 +317,7 @@ export function endWordCloud(now = Date.now()): void {
 export function chooseActiveQuestion(id: string): boolean {
   const selected = store.questions.get(id);
 
-  if (!selected || selected.status === "hidden" || selected.status === "done") {
+  if (!selected || selected.status === "pending" || selected.status === "hidden" || selected.status === "done") {
     return false;
   }
 
@@ -368,6 +411,49 @@ export function clearPanelStateForTests(): void {
   store.words.clear();
   store.rateLimits.clear();
   store.wordCloudEndedAt = undefined;
+}
+
+export function serializePanelState(): SerializedPanelState {
+  return {
+    questions: [...store.questions.values()].map((question) => ({
+      ...question,
+      voterIds: [...question.voterIds],
+    })),
+    words: [...store.words.values()].map((word) => ({
+      ...word,
+      voterIds: [...word.voterIds],
+    })),
+    rateLimits: [...store.rateLimits.entries()].map(([key, bucket]) => [key, bucket.timestamps]),
+    wordCloudEndedAt: store.wordCloudEndedAt,
+  };
+}
+
+export function loadPanelState(state: SerializedPanelState | undefined): void {
+  clearPanelStateForTests();
+
+  if (!state) {
+    return;
+  }
+
+  for (const question of state.questions) {
+    store.questions.set(question.id, {
+      ...question,
+      voterIds: new Set(question.voterIds),
+    });
+  }
+
+  for (const word of state.words) {
+    store.words.set(word.id, {
+      ...word,
+      voterIds: new Set(word.voterIds),
+    });
+  }
+
+  for (const [key, timestamps] of state.rateLimits) {
+    store.rateLimits.set(key, { timestamps: [...timestamps] });
+  }
+
+  store.wordCloudEndedAt = state.wordCloudEndedAt;
 }
 
 function getActiveQuestion(): PanelQuestion | undefined {

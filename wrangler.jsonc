@@ -4,13 +4,27 @@
   "main": "src/worker.ts",
   "compatibility_date": "2026-03-28",
   "build": {
-    "command": "npm run build:css",
+    "command": "npm run build",
     "watch_dir": "src",
   },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "PANEL_ROOM",
+        "class_name": "PanelRoom",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["PanelRoom"],
+    },
+  ],
   "rules": [
     {
       "type": "Text",
-      "globs": ["**/*.css"],
+      "globs": ["**/*.css", "**/*.client.js"],
       "fallthrough": true,
     },
     {

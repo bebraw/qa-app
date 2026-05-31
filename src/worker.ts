@@ -12,6 +12,7 @@ import {
   type PanelEnv,
 } from "./panel/auth";
 import {
+  approveQuestion,
   approveWord,
   chooseActiveQuestion,
   endWordCloud,
@@ -24,41 +25,110 @@ import {
   listModeratorQuestions,
   listModeratorWords,
   listScreenWords,
+  loadPanelState,
   mergeWord,
   markActiveQuestionDone,
   proposeQuestion,
   resetPanel,
+  serializePanelState,
   submitWord,
   voteForQuestion,
   voteForWord,
   wordCloudEnded,
+  type SerializedPanelState,
 } from "./panel/state";
 import { renderNotFoundPage } from "./views/not-found";
 import {
   renderAudiencePage,
+  renderAudienceQuestionsContent,
+  renderAudienceWordsContent,
   renderMcPage,
   renderModeratorPage,
   renderScreenPage,
   renderWordPage,
+  renderWordScreenContent,
   renderWordScreenPage,
 } from "./views/panel";
-import { cssResponse, fontResponse, htmlResponse, redirectResponse } from "./views/shared";
+import { cssResponse, fontResponse, htmlResponse, jsResponse, redirectResponse } from "./views/shared";
+
+interface PanelDurableObjectId {}
+
+interface PanelDurableObjectStub {
+  readonly fetch: (request: Request) => Promise<Response>;
+}
+
+interface PanelDurableObjectNamespace {
+  readonly idFromName: (name: string) => PanelDurableObjectId;
+  readonly get: (id: PanelDurableObjectId) => PanelDurableObjectStub;
+}
+
+interface DurableObjectStorage {
+  readonly get: <T>(key: string) => Promise<T | undefined>;
+  readonly put: <T>(key: string, value: T) => Promise<void>;
+}
+
+interface DurableObjectState {
+  readonly storage: DurableObjectStorage;
+}
+
+export interface PanelWorkerEnv extends PanelEnv {
+  readonly PANEL_ROOM?: PanelDurableObjectNamespace;
+}
+
+const panelStateStorageKey = "panel-state";
 
 export default {
-  async fetch(request: Request, env?: PanelEnv): Promise<Response> {
+  async fetch(request: Request, env?: PanelWorkerEnv): Promise<Response> {
     return await handleRequest(request, env ?? {});
   },
 };
 
-export async function handleRequest(request: Request, env: PanelEnv = {}): Promise<Response> {
+export class PanelRoom {
+  private hydrated = false;
+
+  constructor(
+    private readonly state: DurableObjectState,
+    private readonly env: PanelWorkerEnv,
+  ) {}
+
+  async fetch(request: Request): Promise<Response> {
+    await this.hydrate();
+    const response = await handleRequest(request, this.env, false);
+
+    if (request.method === "POST") {
+      await this.state.storage.put(panelStateStorageKey, serializePanelState());
+    }
+
+    return response;
+  }
+
+  private async hydrate(): Promise<void> {
+    if (this.hydrated) {
+      return;
+    }
+
+    loadPanelState(await this.state.storage.get<SerializedPanelState>(panelStateStorageKey));
+    this.hydrated = true;
+  }
+}
+
+export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, routeToDurableObject = true): Promise<Response> {
   const url = new URL(request.url);
 
   if (url.pathname === "/styles.css") {
     return cssResponse(await loadStylesheet());
   }
 
+  if (url.pathname === "/panel-live.js") {
+    return jsResponse(await loadClientScript());
+  }
+
   if (url.pathname === "/fonts/FinlandicaHeadline-Regular.ttf") {
     return fontResponse(await loadFinlandicaFont());
+  }
+
+  if (routeToDurableObject && shouldUsePanelRoom(url.pathname, request.method) && env.PANEL_ROOM) {
+    return await fetchPanelRoom(request, env.PANEL_ROOM);
   }
 
   if (request.method === "POST") {
@@ -76,12 +146,20 @@ export async function handleRequest(request: Request, env: PanelEnv = {}): Promi
     );
   }
 
+  if (url.pathname === "/questions/live") {
+    return htmlResponse(renderAudienceQuestionsContent(listAudienceQuestions(attendee.id)));
+  }
+
   if (url.pathname === "/words") {
     return htmlResponse(
       renderWordPage({ words: listAudienceWords(attendee.id), notice: url.searchParams.get("notice") ?? undefined }),
       200,
       attendeeCookieHeaders,
     );
+  }
+
+  if (url.pathname === "/words/live") {
+    return htmlResponse(renderAudienceWordsContent(listAudienceWords(attendee.id)));
   }
 
   if (url.pathname === "/mc") {
@@ -114,6 +192,10 @@ export async function handleRequest(request: Request, env: PanelEnv = {}): Promi
 
   if (url.pathname === "/words/screen") {
     return htmlResponse(renderWordScreenPage(listScreenWords()));
+  }
+
+  if (url.pathname === "/words/screen/live") {
+    return htmlResponse(renderWordScreenContent(listScreenWords()));
   }
 
   if (url.pathname === "/api/health") {
@@ -271,6 +353,12 @@ async function handleModeratorAction(request: Request, env: PanelEnv, attendeeId
     return redirectResponse("/moderator", headers);
   }
 
+  if (url.pathname === "/moderator/approve") {
+    const formData = await request.formData();
+    approveQuestion(getFormValue(formData, "questionId"));
+    return redirectResponse("/moderator", headers);
+  }
+
   if (url.pathname === "/moderator/words/approve") {
     const formData = await request.formData();
     approveWord(getFormValue(formData, "wordId"));
@@ -342,6 +430,16 @@ async function loadStylesheet(): Promise<string> {
   return styles.default;
 }
 
+async function loadClientScript(): Promise<string> {
+  if (typeof process !== "undefined" && process.release?.name === "node") {
+    const { readFile } = await import("node:fs/promises");
+    return await readFile(new URL("../.generated/panel-live.client.js", import.meta.url), "utf8");
+  }
+
+  const script = await import("../.generated/panel-live.client.js");
+  return script.default;
+}
+
 async function loadFinlandicaFont(): Promise<ArrayBuffer> {
   if (finlandicaRegularFont instanceof ArrayBuffer) {
     return finlandicaRegularFont;
@@ -355,4 +453,27 @@ async function loadFinlandicaFont(): Promise<ArrayBuffer> {
   }
 
   throw new Error("Finlandica font asset was not bundled.");
+}
+
+function shouldUsePanelRoom(pathname: string, method: string): boolean {
+  if (method === "POST") {
+    return true;
+  }
+
+  return (
+    pathname === "/" ||
+    pathname === "/questions/live" ||
+    pathname === "/words" ||
+    pathname === "/words/live" ||
+    pathname === "/mc" ||
+    pathname === "/moderator" ||
+    pathname === "/screen" ||
+    pathname === "/words/screen" ||
+    pathname === "/words/screen/live"
+  );
+}
+
+async function fetchPanelRoom(request: Request, namespace: PanelDurableObjectNamespace): Promise<Response> {
+  const id = namespace.idFromName("default");
+  return await namespace.get(id).fetch(request);
 }

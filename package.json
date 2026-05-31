@@ -13,6 +13,7 @@
     }
   },
   "scripts": {
+    "build": "npm run build:css && node ./scripts/build-client-assets.mjs",
     "build:css": "mkdir -p ./.generated && tailwindcss -i ./src/tailwind-input.css -o ./.generated/styles.css --minify",
     "ci:local": "agent-ci run --quiet --jobs 1 --workflow .github/workflows/ci.yml",
     "ci:local:retry": "agent-ci retry",

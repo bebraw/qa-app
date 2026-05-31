@@ -24,32 +24,54 @@ export function renderAudiencePage(view: AudienceViewModel): string {
   return pageShell({
     title: appName,
     bodyClass: "bg-app-canvas text-app-text",
+    scriptPath: "/panel-live.js",
     body: `
       <main class="mx-auto flex min-h-screen w-[min(42rem,calc(100vw-1.5rem))] flex-col gap-5 px-1 py-6 sm:py-9">
         ${header("Questions")}
         ${notice(view.notice)}
         ${questionForm("/", "Ask a question", "Question", "Send")}
-        <section class="space-y-3" aria-label="Available questions">
-          ${view.questions.length === 0 ? emptyState("No questions yet.") : view.questions.map((question) => questionCard(question, "attendee")).join("")}
-        </section>
+        ${renderAudienceQuestionsFragment(view.questions)}
       </main>`,
   });
+}
+
+export function renderAudienceQuestionsFragment(questions: PublicQuestion[]): string {
+  return `<section class="space-y-3" aria-label="Available questions" data-live-region="questions" data-live-src="/questions/live">
+    ${renderAudienceQuestionsContent(questions)}
+  </section>`;
+}
+
+export function renderAudienceQuestionsContent(questions: PublicQuestion[]): string {
+  return questions.length === 0
+    ? emptyState("No questions yet.")
+    : questions.map((question) => questionCard(question, "attendee")).join("");
 }
 
 export function renderWordPage(view: WordViewModel): string {
   return pageShell({
     title: `Words - ${appName}`,
     bodyClass: "bg-app-canvas text-app-text",
+    scriptPath: "/panel-live.js",
     body: `
       <main class="mx-auto flex min-h-screen w-[min(42rem,calc(100vw-1.5rem))] flex-col gap-5 px-1 py-6 sm:py-9">
         ${header("Words")}
         ${notice(view.notice)}
         ${wordForm("/words", "Add word", "Word", "Send")}
-        <section aria-label="Approved words">
-          ${view.words.length === 0 ? emptyState("No words yet.") : `<div class="flex flex-wrap gap-2">${view.words.map((word) => wordPill(word, "attendee")).join("")}</div>`}
-        </section>
+        ${renderAudienceWordsFragment(view.words)}
       </main>`,
   });
+}
+
+export function renderAudienceWordsFragment(words: PublicWord[]): string {
+  return `<section aria-label="Approved words" data-live-region="words" data-live-src="/words/live">
+    ${renderAudienceWordsContent(words)}
+  </section>`;
+}
+
+export function renderAudienceWordsContent(words: PublicWord[]): string {
+  return words.length === 0
+    ? emptyState("No words yet.")
+    : `<div class="flex flex-wrap gap-2">${words.map((word) => wordPill(word, "attendee")).join("")}</div>`;
 }
 
 export function renderMcPage(view: RoleViewModel): string {
@@ -96,20 +118,27 @@ export function renderModeratorPage(view: RoleViewModel): string {
 }
 
 export function renderWordScreenPage(words: PublicWord[]): string {
-  const content =
-    words.length === 0
-      ? `<p class="text-center text-3xl font-semibold text-white/78 sm:text-5xl">Waiting.</p>`
-      : `<div class="flex max-w-6xl flex-wrap items-center justify-center gap-x-8 gap-y-5">${words.map(screenWord).join("")}</div>`;
-
   return pageShell({
     title: `Word cloud - ${appName}`,
-    refreshSeconds: 5,
     bodyClass: "min-h-screen bg-black text-white",
+    scriptPath: "/panel-live.js",
     body: `
       <main class="flex min-h-screen items-center justify-center px-8 py-10">
-        ${content}
+        ${renderWordScreenFragment(words)}
       </main>`,
   });
+}
+
+export function renderWordScreenFragment(words: PublicWord[]): string {
+  return `<section class="flex w-full items-center justify-center" aria-label="Word cloud screen" data-live-region="word-screen" data-live-src="/words/screen/live">
+    ${renderWordScreenContent(words)}
+  </section>`;
+}
+
+export function renderWordScreenContent(words: PublicWord[]): string {
+  return words.length === 0
+    ? `<p class="text-center text-3xl font-semibold text-white/78 sm:text-5xl">Waiting.</p>`
+    : `<div class="flex max-w-6xl flex-wrap items-center justify-center gap-x-8 gap-y-5">${words.map(screenWord).join("")}</div>`;
 }
 
 export function renderScreenPage(question: PublicQuestion | undefined): string {
@@ -154,8 +183,10 @@ function pageShell(input: {
   readonly body: string;
   readonly bodyClass: string;
   readonly refreshSeconds?: number;
+  readonly scriptPath?: string;
 }): string {
   const refresh = input.refreshSeconds ? `<meta http-equiv="refresh" content="${input.refreshSeconds}">` : "";
+  const script = input.scriptPath ? `<script src="${escapeHtml(input.scriptPath)}" type="module"></script>` : "";
 
   return `<!doctype html>
 <html lang="en">
@@ -165,6 +196,7 @@ function pageShell(input: {
     ${refresh}
     <title>${escapeHtml(input.title)}</title>
     <link rel="stylesheet" href="/styles.css">
+    ${script}
   </head>
   <body class="min-h-screen ${input.bodyClass} antialiased">
     ${input.body}
@@ -224,6 +256,10 @@ function moderatorWords(words: PublicWord[], ended: boolean): string {
 
 function questionCard(question: PublicQuestion, role: "attendee" | "mc" | "moderator"): string {
   const activeClass = question.status === "active" ? "border-app-accent bg-app-accent-ghost" : "border-app-line bg-white";
+  const pendingLabel =
+    question.status === "pending"
+      ? `<span class="rounded-full border border-app-line px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-app-text-soft">Pending</span>`
+      : "";
   const hiddenLabel =
     question.status === "hidden"
       ? `<span class="rounded-full border border-app-line px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-app-text-soft">Hidden</span>`
@@ -242,7 +278,7 @@ function questionCard(question: PublicQuestion, role: "attendee" | "mc" | "moder
       </div>
     </div>
     <div class="mt-4 flex flex-wrap items-center gap-2">
-      ${activeLabel}${hiddenLabel}${actions(question, role)}
+      ${activeLabel}${pendingLabel}${hiddenLabel}${actions(question, role)}
     </div>
   </article>`;
 }
@@ -300,7 +336,13 @@ function actions(question: PublicQuestion, role: "attendee" | "mc" | "moderator"
       <form method="post" action="/mc/done"><button class="h-10 rounded-lg border border-app-line bg-white px-4 text-sm font-semibold text-app-text-soft hover:text-app-text" type="submit">Done</button></form>`;
   }
 
-  return `${voteButton}${actionButton("/moderator/hide", question.id, "Hide", "border-app-line bg-white text-app-text-soft hover:text-app-text")}`;
+  const approveButton =
+    question.status === "pending"
+      ? actionButton("/moderator/approve", question.id, "Approve", "bg-app-text text-white hover:bg-app-accent-strong")
+      : "";
+  const moderatorVoteButton = question.status === "pending" ? "" : voteButton;
+
+  return `${approveButton}${moderatorVoteButton}${actionButton("/moderator/hide", question.id, "Hide", "border-app-line bg-white text-app-text-soft hover:text-app-text")}`;
 }
 
 function actionButton(action: string, questionId: string, label: string, classes: string): string {

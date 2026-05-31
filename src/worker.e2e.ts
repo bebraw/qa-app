@@ -6,6 +6,7 @@ test("renders the attendee question page", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1, name: "Questions" })).toBeVisible();
   await expect(page.getByPlaceholder("Question")).toBeVisible();
   await expect(page.getByText("No questions yet.")).toBeVisible();
+  await expect(page.locator('script[src="/panel-live.js"]')).toHaveCount(1);
 });
 
 test("renders the attendee word page", async ({ page }) => {
@@ -14,6 +15,7 @@ test("renders the attendee word page", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1, name: "Words" })).toBeVisible();
   await expect(page.getByPlaceholder("Word")).toBeVisible();
   await expect(page.getByText("No words yet.")).toBeVisible();
+  await expect(page.locator('script[src="/panel-live.js"]')).toHaveCount(1);
 });
 
 test("serves the health endpoint", async ({ request }) => {
@@ -33,6 +35,13 @@ test("serves the generated stylesheet", async ({ request }) => {
   expect(response.ok()).toBe(true);
   expect(response.headers()["content-type"]).toContain("text/css");
   await expect(response.text()).resolves.toContain("--color-app-canvas:#fff");
+});
+
+test("serves the generated live-update script", async ({ request }) => {
+  const response = await request.get("/panel-live.js");
+
+  expect(response.ok()).toBe(true);
+  expect(response.headers()["content-type"]).toContain("text/javascript");
 });
 
 test("serves the bundled Finlandica font", async ({ request }) => {

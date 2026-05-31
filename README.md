@@ -38,19 +38,28 @@ Set these values in `.dev.vars` locally and as Worker secrets in production:
 
 Routes:
 
-- `GET /`: attendee view for anonymous questions and votes
-- `GET /words`: attendee view for anonymous word-cloud submissions and votes
+- `GET /`: attendee view for anonymous questions and votes, with automatic updates for newly approved questions
+- `GET /words`: attendee view for anonymous word-cloud submissions and votes, with automatic updates for newly approved words
 - `GET /mc`: passcode-protected MC view for choosing the live question and marking it done
-- `GET /moderator`: passcode-protected moderator view for adding, voting, hiding, merging, ending, and resetting panel content
+- `GET /moderator`: passcode-protected moderator view for approving, adding, voting, hiding, merging, ending, and resetting panel content
 - `GET /screen`: beamer view showing the active question
-- `GET /words/screen`: beamer view showing approved word-cloud entries
+- `GET /words/screen`: beamer view showing approved word-cloud entries, with automatic updates
 - `GET /api/health`: JSON health response for smoke tests and tooling
 
-Panel state is in memory. The moderator reset clears it explicitly, and a Worker isolate restart can clear it implicitly. Ended word-cloud data stays visible to the moderator until reset.
+Panel state is coordinated through a SQLite-backed Cloudflare Durable Object room. The moderator reset clears it explicitly. Ended word-cloud data stays visible to the moderator until reset.
 
 ## Deploy To Cloudflare
 
 Before deploying, choose the production Worker name in `wrangler.jsonc`. The default is currently `vibe-template-worker`.
+
+The production Worker uses:
+
+- `PANEL_ROOM`: Durable Object binding for the shared panel room
+- `PanelRoom`: Durable Object class exported from `src/worker.ts`
+- `v1`: SQLite-backed Durable Object migration in `wrangler.jsonc`
+- `AUTH_SECRET`, `MC_PASSCODE`, and `MODERATOR_PASSCODE`: Worker secrets
+
+Keep the Durable Object binding and migration in the deployed config. Removing or renaming them after deployment can strand existing room state.
 
 1. Authenticate Wrangler:
 
@@ -58,13 +67,21 @@ Before deploying, choose the production Worker name in `wrangler.jsonc`. The def
    npx wrangler login
    ```
 
-2. Create strong production values for the required secrets:
+2. Review the Cloudflare config:
+
+   ```sh
+   npx wrangler deploy --dry-run
+   ```
+
+   Confirm the output targets the expected Worker name and includes the `PanelRoom` Durable Object migration.
+
+3. Create strong production values for the required secrets:
 
    ```sh
    openssl rand -base64 48
    ```
 
-3. Store the secrets in Cloudflare Workers. Do not commit production values to `.dev.vars`.
+4. Store the secrets in Cloudflare Workers. Do not commit production values to `.dev.vars`.
 
    ```sh
    npx wrangler secret put AUTH_SECRET
@@ -72,25 +89,27 @@ Before deploying, choose the production Worker name in `wrangler.jsonc`. The def
    npx wrangler secret put MODERATOR_PASSCODE
    ```
 
-4. Run the local release checks:
+5. Run the local release checks:
 
    ```sh
    npm run quality:gate
    npm run ci:local
    ```
 
-5. Deploy:
+6. Deploy:
 
    ```sh
    npm run deploy
    ```
 
-6. Smoke-test the deployed Worker:
+7. Smoke-test the deployed Worker:
    - Open `/api/health` and confirm it returns `{"ok":true,...}`.
    - Open `/`, `/words`, `/mc`, `/moderator`, `/screen`, and `/words/screen`.
    - Confirm MC and moderator views require the production passcodes.
+   - Submit a question and a word from attendee tabs, approve them in `/moderator`, and confirm already-open attendee/screen pages update without refresh.
+   - Use `/moderator` reset before opening the room to attendees.
 
-The app keeps questions and word-cloud data in Worker memory. Deploys, isolate restarts, and multi-isolate routing can clear or split that state, so reset and test the room flow before using the Worker live.
+The app keeps questions and word-cloud data in the `PanelRoom` Durable Object. The current config uses one default room for the event. Use moderator reset to clear it between panels.
 
 ## Verification
 

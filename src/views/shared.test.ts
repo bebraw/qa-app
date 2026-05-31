@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cssResponse, escapeHtml, fontResponse, htmlResponse, redirectResponse } from "./shared";
+import { cssResponse, escapeHtml, fontResponse, htmlResponse, jsResponse, redirectResponse } from "./shared";
 
 describe("htmlResponse", () => {
   it("returns no-store HTML responses", () => {
@@ -28,6 +28,16 @@ describe("fontResponse", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("font/ttf");
     expect(response.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+  });
+});
+
+describe("jsResponse", () => {
+  it("returns no-store JavaScript responses", () => {
+    const response = jsResponse("export {};");
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("text/javascript; charset=utf-8");
+    expect(response.headers.get("cache-control")).toBe("no-store");
   });
 });
 
