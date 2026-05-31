@@ -51,34 +51,60 @@ const pendingWord: PublicWord = {
 
 describe("panel views", () => {
   it("renders attendee questions, notices, and voted state", () => {
-    const html = renderAudiencePage({ questions: [activeQuestion], notice: "Question added." });
+    const html = renderAudiencePage({ mode: "qa", questions: [activeQuestion], words: [], notice: "Question added." });
 
     expect(html).not.toContain("Stryker was here!");
     expect(html).toContain("<title>Future Frontend Panels</title>");
     expect(html).toContain('<script src="/panel-live.js" type="module"></script>');
-    expect(html).toContain('data-live-src="/questions/live"');
+    expect(html).toContain('data-live-src="/live"');
     expect(html).toContain("bg-app-canvas text-app-text");
     expect(html).toContain("Question added.");
     expect(html).toContain("How do we keep frontend systems understandable?");
     expect(html).toContain("Live");
     expect(html).toContain("Voted");
     expect(html).toContain('action="/"');
-    expect(renderAudiencePage({ questions: [availableQuestion] })).toContain('action="/vote"');
-    expect(renderAudiencePage({ questions: [availableQuestion] })).not.toContain('action="/moderator/vote"');
+    expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).toContain('action="/vote"');
+    expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).not.toContain('action="/moderator/vote"');
+    expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain("Readable 4");
+    expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain('name="word"');
   });
 
   it("renders protected role login setup states", () => {
-    expect(renderMcPage({ questions: [], auth: { configured: false } })).toContain("Set AUTH_SECRET and MC_PASSCODE");
-    expect(renderModeratorPage({ questions: [], auth: { configured: false } })).toContain("Set AUTH_SECRET and MODERATOR_PASSCODE");
-    expect(renderMcPage({ questions: [], auth: { configured: true } })).not.toContain("Set AUTH_SECRET");
-    expect(renderModeratorPage({ questions: [], auth: { configured: true } })).toContain('action="/moderator/login"');
-    expect(renderModeratorPage({ questions: [], auth: { configured: true, role: "moderator" } })).toContain("No questions to moderate.");
+    expect(renderMcPage({ mode: "qa", questions: [], words: [], wordCloudEnded: false, auth: { configured: false } })).toContain(
+      "Set AUTH_SECRET and MC_PASSCODE",
+    );
+    expect(renderModeratorPage({ mode: "qa", questions: [], words: [], wordCloudEnded: false, auth: { configured: false } })).toContain(
+      "Set AUTH_SECRET and MODERATOR_PASSCODE",
+    );
+    expect(renderMcPage({ mode: "qa", questions: [], words: [], wordCloudEnded: false, auth: { configured: true } })).not.toContain(
+      "Set AUTH_SECRET",
+    );
+    expect(renderModeratorPage({ mode: "qa", questions: [], words: [], wordCloudEnded: false, auth: { configured: true } })).toContain(
+      'action="/moderator/login"',
+    );
+    expect(
+      renderModeratorPage({ mode: "qa", questions: [], words: [], wordCloudEnded: false, auth: { configured: true, role: "moderator" } }),
+    ).toContain("No questions to moderate.");
   });
 
   it("renders MC and moderator queues with role-specific actions", () => {
-    const mcHtml = renderMcPage({ questions: [availableQuestion], auth: { configured: true, role: "mc" } });
+    const mcHtml = renderMcPage({
+      mode: "qa",
+      questions: [availableQuestion],
+      words: [],
+      wordCloudEnded: false,
+      auth: { configured: true, role: "mc" },
+    });
     const moderatorHtml = renderModeratorPage({
+      mode: "qa",
       questions: [availableQuestion, hiddenQuestion],
+      words: [],
+      wordCloudEnded: false,
+      auth: { configured: true, role: "moderator" },
+    });
+    const wordModeratorHtml = renderModeratorPage({
+      mode: "wordcloud",
+      questions: [availableQuestion],
       words: [approvedWord, pendingWord],
       wordCloudEnded: true,
       auth: { configured: true, role: "moderator" },
@@ -86,8 +112,15 @@ describe("panel views", () => {
 
     expect(mcHtml).toContain('action="/mc/select"');
     expect(mcHtml).toContain('action="/mc/done"');
+    expect(mcHtml).toContain('<script src="/panel-live.js" type="module"></script>');
+    expect(mcHtml).toContain('data-live-src="/mc/live"');
     expect(mcHtml).toContain(">Ask</button>");
     expect(mcHtml).toContain("bg-app-text text-white hover:bg-app-accent-strong");
+    expect(moderatorHtml).toContain('<script src="/panel-live.js" type="module"></script>');
+    expect(moderatorHtml).toContain('data-live-src="/moderator/live"');
+    expect(moderatorHtml).toContain('action="/moderator/mode"');
+    expect(moderatorHtml).toContain('name="mode" value="qa"');
+    expect(moderatorHtml).toContain('name="mode" value="wordcloud"');
     expect(moderatorHtml).toContain('action="/moderator/vote"');
     expect(moderatorHtml).toContain('action="/moderator"');
     expect(moderatorHtml).toContain("Add moderator question");
@@ -95,16 +128,21 @@ describe("panel views", () => {
     expect(moderatorHtml).toContain(">Hide</button>");
     expect(moderatorHtml).toContain("border-app-line bg-white text-app-text-soft hover:text-app-text");
     expect(moderatorHtml).toContain("Hidden");
-    expect(moderatorHtml).toContain('action="/moderator/words/approve"');
-    expect(moderatorHtml).toContain('action="/moderator/words/merge"');
-    expect(moderatorHtml).toContain("Ended");
     expect(moderatorHtml).toContain(">Reset</button>");
+    expect(moderatorHtml).not.toContain('action="/moderator/words/approve"');
+    expect(wordModeratorHtml).toContain('action="/moderator/words/approve"');
+    expect(wordModeratorHtml).toContain('action="/moderator/words/merge"');
+    expect(wordModeratorHtml).toContain("Ended");
+    expect(wordModeratorHtml).not.toContain("Add moderator question");
     expect(moderatorHtml).not.toContain("Stryker was here!");
   });
 
   it("renders pending question approval controls for moderator", () => {
     const moderatorHtml = renderModeratorPage({
+      mode: "qa",
       questions: [pendingQuestion],
+      words: [],
+      wordCloudEnded: false,
       auth: { configured: true, role: "moderator" },
     });
 

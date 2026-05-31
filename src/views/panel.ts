@@ -1,16 +1,17 @@
 import type { AuthState } from "../panel/auth";
-import type { PublicQuestion, PublicWord } from "../panel/state";
+import type { PanelMode, PublicQuestion, PublicWord } from "../panel/state";
 import { escapeHtml } from "./shared";
 
 interface AudienceViewModel {
+  readonly mode: PanelMode;
   readonly questions: PublicQuestion[];
+  readonly words: PublicWord[];
   readonly notice?: string | undefined;
 }
 
 interface RoleViewModel extends AudienceViewModel {
   readonly auth: AuthState;
-  readonly words?: PublicWord[];
-  readonly wordCloudEnded?: boolean;
+  readonly wordCloudEnded: boolean;
 }
 
 interface WordViewModel {
@@ -27,12 +28,33 @@ export function renderAudiencePage(view: AudienceViewModel): string {
     scriptPath: "/panel-live.js",
     body: `
       <main class="mx-auto flex min-h-screen w-[min(42rem,calc(100vw-1.5rem))] flex-col gap-5 px-1 py-6 sm:py-9">
-        ${header("Questions")}
-        ${notice(view.notice)}
-        ${questionForm("/", "Ask a question", "Question", "Send")}
-        ${renderAudienceQuestionsFragment(view.questions)}
+        ${renderAudienceModeFragment(view)}
       </main>`,
   });
+}
+
+export function renderAudienceModeFragment(view: AudienceViewModel): string {
+  return `<section class="contents" data-live-region="audience-mode" data-live-src="/live">
+    ${renderAudienceModeContent(view)}
+  </section>`;
+}
+
+export function renderAudienceModeContent(view: AudienceViewModel): string {
+  if (view.mode === "wordcloud") {
+    return `${header("Words")}
+      ${notice(view.notice)}
+      ${wordForm("/", "Add word", "Word", "Send")}
+      <section aria-label="Approved words">
+        ${renderAudienceWordsContent(view.words)}
+      </section>`;
+  }
+
+  return `${header("Questions")}
+    ${notice(view.notice)}
+    ${questionForm("/", "Ask a question", "Question", "Send")}
+    <section class="space-y-3" aria-label="Available questions">
+      ${renderAudienceQuestionsContent(view.questions)}
+    </section>`;
 }
 
 export function renderAudienceQuestionsFragment(questions: PublicQuestion[]): string {
@@ -82,15 +104,24 @@ export function renderMcPage(view: RoleViewModel): string {
   return pageShell({
     title: `MC - ${appName}`,
     bodyClass: "bg-app-canvas text-app-text",
+    scriptPath: "/panel-live.js",
     body: `
       <main class="mx-auto flex min-h-screen w-[min(46rem,calc(100vw-1.5rem))] flex-col gap-5 px-1 py-6 sm:py-9">
         ${operatorHeader("MC")}
         ${notice(view.notice)}
-        <section class="space-y-3" aria-label="Questions for MC">
-          ${view.questions.length === 0 ? emptyState("No questions waiting.") : view.questions.map((question) => questionCard(question, "mc")).join("")}
-        </section>
+        ${renderMcQuestionsFragment(view.questions)}
       </main>`,
   });
+}
+
+export function renderMcQuestionsFragment(questions: PublicQuestion[]): string {
+  return `<section class="space-y-3" aria-label="Questions for MC" data-live-region="mc-questions" data-live-src="/mc/live">
+    ${renderMcQuestionsContent(questions)}
+  </section>`;
+}
+
+export function renderMcQuestionsContent(questions: PublicQuestion[]): string {
+  return questions.length === 0 ? emptyState("No questions waiting.") : questions.map((question) => questionCard(question, "mc")).join("");
 }
 
 export function renderModeratorPage(view: RoleViewModel): string {
@@ -101,20 +132,87 @@ export function renderModeratorPage(view: RoleViewModel): string {
   return pageShell({
     title: `Moderator - ${appName}`,
     bodyClass: "bg-app-canvas text-app-text",
+    scriptPath: "/panel-live.js",
     body: `
       <main class="mx-auto flex min-h-screen w-[min(48rem,calc(100vw-1.5rem))] flex-col gap-5 px-1 py-6 sm:py-9">
         ${operatorHeader("Moderator")}
         ${notice(view.notice)}
-        ${questionForm("/moderator", "Add moderator question", "Question", "Add")}
-        ${moderatorWords(view.words ?? [], view.wordCloudEnded ?? false)}
-        <form method="post" action="/moderator/reset">
-          <button class="h-12 w-full rounded-lg border border-app-line bg-white px-4 text-sm font-semibold uppercase tracking-[0.14em] text-app-text transition hover:bg-app-accent-ghost focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-text/30" type="submit">Reset</button>
-        </form>
-        <section class="space-y-3" aria-label="Questions for moderator">
-          ${view.questions.length === 0 ? emptyState("No questions to moderate.") : view.questions.map((question) => questionCard(question, "moderator")).join("")}
-        </section>
+        ${renderModeratorModeFragment(view)}
       </main>`,
   });
+}
+
+export function renderModeratorModeFragment(view: RoleViewModel): string {
+  return `<section class="contents" data-live-region="moderator-mode" data-live-src="/moderator/live">
+    ${renderModeratorModeContent(view)}
+  </section>`;
+}
+
+export function renderModeratorModeContent(view: RoleViewModel): string {
+  const resetForm = `<form method="post" action="/moderator/reset">
+    <button class="h-12 w-full rounded-lg border border-app-line bg-white px-4 text-sm font-semibold uppercase tracking-[0.14em] text-app-text transition hover:bg-app-accent-ghost focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-text/30" type="submit">Reset</button>
+  </form>`;
+
+  if (view.mode === "wordcloud") {
+    return `${modeSwitch(view.mode)}
+      ${renderModeratorWordsContent(view.words, view.wordCloudEnded)}
+      ${resetForm}`;
+  }
+
+  return `${modeSwitch(view.mode)}
+    ${questionForm("/moderator", "Add moderator question", "Question", "Add")}
+    ${resetForm}
+    <section class="space-y-3" aria-label="Questions for moderator">
+      ${renderModeratorQuestionsContent(view.questions)}
+    </section>`;
+}
+
+export function renderModeratorQuestionsFragment(questions: PublicQuestion[]): string {
+  return `<section class="space-y-3" aria-label="Questions for moderator" data-live-region="moderator-questions" data-live-src="/moderator/questions/live">
+    ${renderModeratorQuestionsContent(questions)}
+  </section>`;
+}
+
+export function renderModeratorQuestionsContent(questions: PublicQuestion[]): string {
+  return questions.length === 0
+    ? emptyState("No questions to moderate.")
+    : questions.map((question) => questionCard(question, "moderator")).join("");
+}
+
+export function renderModeratorWordsFragment(words: PublicWord[], ended: boolean): string {
+  return `<section class="space-y-3" aria-label="Word cloud" data-live-region="moderator-words" data-live-src="/moderator/words/live">
+    ${renderModeratorWordsContent(words, ended)}
+  </section>`;
+}
+
+export function renderModeratorWordsContent(words: PublicWord[], ended: boolean): string {
+  return `<div class="flex items-end justify-between gap-3 border-b border-app-line pb-3">
+    <div class="flex items-end gap-3">
+      <h2 class="text-3xl font-semibold leading-none">Words</h2>
+      ${ended ? `<span class="pb-1 text-sm font-semibold uppercase tracking-[0.14em] text-app-text-soft">Ended</span>` : ""}
+    </div>
+    <form method="post" action="/moderator/words/end">
+      <button class="h-10 rounded-lg border border-app-line bg-white px-4 text-sm font-semibold text-app-text-soft transition hover:text-app-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35" type="submit" ${ended ? "disabled" : ""}>End</button>
+    </form>
+  </div>
+  ${words.length === 0 ? emptyState("No words yet.") : `<div class="space-y-2">${words.map(moderatorWordRow).join("")}</div>`}`;
+}
+
+function modeSwitch(mode: PanelMode): string {
+  return `<div class="grid grid-cols-2 gap-2 rounded-lg border border-app-line bg-app-surface p-2 shadow-panel" aria-label="Application mode">
+    ${modeButton("qa", "QA", mode)}
+    ${modeButton("wordcloud", "Words", mode)}
+  </div>`;
+}
+
+function modeButton(value: PanelMode, label: string, current: PanelMode): string {
+  const active = value === current;
+  return `<form method="post" action="/moderator/mode">
+    <input type="hidden" name="mode" value="${value}">
+    <button class="h-11 w-full rounded-md border px-4 text-sm font-semibold uppercase tracking-[0.14em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35 ${
+      active ? "border-app-text bg-app-text text-white" : "border-app-line bg-white text-app-text-soft hover:text-app-text"
+    }" type="submit" ${active ? "disabled" : ""}>${escapeHtml(label)}</button>
+  </form>`;
 }
 
 export function renderWordScreenPage(words: PublicWord[]): string {
@@ -237,21 +335,6 @@ function wordForm(action: string, label: string, placeholder: string, button: st
     <input class="h-12 min-w-0 flex-1 rounded-md border border-app-line bg-white px-4 text-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35" id="word-text" name="word" maxlength="40" placeholder="${escapeHtml(placeholder)}" required>
     <button class="h-12 rounded-lg bg-app-text px-5 text-sm font-semibold uppercase tracking-[0.16em] text-white transition hover:bg-app-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/40" type="submit">${escapeHtml(button)}</button>
   </form>`;
-}
-
-function moderatorWords(words: PublicWord[], ended: boolean): string {
-  return `<section class="space-y-3" aria-label="Word cloud">
-    <div class="flex items-end justify-between gap-3 border-b border-app-line pb-3">
-      <div class="flex items-end gap-3">
-        <h2 class="text-3xl font-semibold leading-none">Words</h2>
-        ${ended ? `<span class="pb-1 text-sm font-semibold uppercase tracking-[0.14em] text-app-text-soft">Ended</span>` : ""}
-      </div>
-      <form method="post" action="/moderator/words/end">
-        <button class="h-10 rounded-lg border border-app-line bg-white px-4 text-sm font-semibold text-app-text-soft transition hover:text-app-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35" type="submit" ${ended ? "disabled" : ""}>End</button>
-      </form>
-    </div>
-    ${words.length === 0 ? emptyState("No words yet.") : `<div class="space-y-2">${words.map(moderatorWordRow).join("")}</div>`}
-  </section>`;
 }
 
 function questionCard(question: PublicQuestion, role: "attendee" | "mc" | "moderator"): string {

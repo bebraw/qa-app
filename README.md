@@ -38,15 +38,17 @@ Set these values in `.dev.vars` locally and as Worker secrets in production:
 
 Routes:
 
-- `GET /`: attendee view for anonymous questions and votes, with automatic updates for newly approved questions
+- `GET /`: attendee view for the active moderator-selected mode: QA questions or word-cloud submissions
 - `GET /words`: attendee view for anonymous word-cloud submissions and votes, with automatic updates for newly approved words
-- `GET /mc`: passcode-protected MC view for choosing the live question and marking it done
-- `GET /moderator`: passcode-protected moderator view for approving, adding, voting, hiding, merging, ending, and resetting panel content
+- `GET /mc`: passcode-protected MC view for choosing the live question and marking it done, with automatic queue updates
+- `GET /moderator`: passcode-protected moderator view for approving, adding, voting, hiding, merging, ending, resetting, and switching panel mode, with QA as the default mode
 - `GET /screen`: beamer view showing the active question
 - `GET /words/screen`: beamer view showing approved word-cloud entries, with automatic updates
 - `GET /api/health`: JSON health response for smoke tests and tooling
 
 Panel state is coordinated through a SQLite-backed Cloudflare Durable Object room. The moderator reset clears it explicitly. Ended word-cloud data stays visible to the moderator until reset.
+
+The moderator controls whether `/` is in QA or wordcloud mode. In QA mode, `/moderator` shows questions to moderate. In wordcloud mode, `/moderator` shows word-cloud controls instead.
 
 ## Deploy To Cloudflare
 

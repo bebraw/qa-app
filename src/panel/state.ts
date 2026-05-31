@@ -1,5 +1,7 @@
 export type PanelRole = "attendee" | "mc" | "moderator";
 
+export type PanelMode = "qa" | "wordcloud";
+
 export type QuestionStatus = "pending" | "available" | "active" | "done" | "hidden";
 
 export type WordStatus = "pending" | "approved" | "hidden";
@@ -61,6 +63,7 @@ interface PanelStore {
   readonly questions: Map<string, PanelQuestion>;
   readonly words: Map<string, PanelWord>;
   readonly rateLimits: Map<string, RateLimitBucket>;
+  mode: PanelMode;
   wordCloudEndedAt: number | undefined;
 }
 
@@ -84,6 +87,7 @@ interface SerializedWord {
 }
 
 export interface SerializedPanelState {
+  readonly mode?: PanelMode | undefined;
   readonly questions: SerializedQuestion[];
   readonly words: SerializedWord[];
   readonly rateLimits: ReadonlyArray<readonly [string, number[]]>;
@@ -94,6 +98,7 @@ const store: PanelStore = {
   questions: new Map(),
   words: new Map(),
   rateLimits: new Map(),
+  mode: "qa",
   wordCloudEndedAt: undefined,
 };
 
@@ -356,7 +361,16 @@ export function hideQuestion(id: string): boolean {
 export function resetPanel(): void {
   store.questions.clear();
   store.words.clear();
+  store.mode = "qa";
   store.wordCloudEndedAt = undefined;
+}
+
+export function getPanelMode(): PanelMode {
+  return store.mode;
+}
+
+export function setPanelMode(mode: PanelMode): void {
+  store.mode = mode;
 }
 
 export function listAudienceQuestions(clientId: string): PublicQuestion[] {
@@ -410,11 +424,13 @@ export function clearPanelStateForTests(): void {
   store.questions.clear();
   store.words.clear();
   store.rateLimits.clear();
+  store.mode = "qa";
   store.wordCloudEndedAt = undefined;
 }
 
 export function serializePanelState(): SerializedPanelState {
   return {
+    mode: store.mode,
     questions: [...store.questions.values()].map((question) => ({
       ...question,
       voterIds: [...question.voterIds],
@@ -453,6 +469,7 @@ export function loadPanelState(state: SerializedPanelState | undefined): void {
     store.rateLimits.set(key, { timestamps: [...timestamps] });
   }
 
+  store.mode = state.mode ?? "qa";
   store.wordCloudEndedAt = state.wordCloudEndedAt;
 }
 

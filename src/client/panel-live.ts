@@ -20,7 +20,7 @@ export function startLiveUpdates(root: ParentNode = document): void {
 export async function refreshRegion(region: LiveRegion): Promise<void> {
   const source = region.dataset.liveSrc;
 
-  if (!source || document.hidden) {
+  if (!source || document.hidden || focusedWithin(region)) {
     return;
   }
 
@@ -42,4 +42,13 @@ export async function refreshRegion(region: LiveRegion): Promise<void> {
 
 if (typeof document !== "undefined") {
   startLiveUpdates();
+}
+
+function focusedWithin(region: LiveRegion): boolean {
+  if (typeof Element === "undefined") {
+    return false;
+  }
+
+  const activeElement = document.activeElement;
+  return activeElement instanceof Element && region.contains(activeElement);
 }

@@ -74,6 +74,24 @@ describe("panel live updates", () => {
     expect(assignmentCount).toBe(0);
   });
 
+  it("skips regions while focus is inside them", async () => {
+    const region = {
+      ...createRegion("/moderator/questions/live", "old"),
+      contains: vi.fn(() => true),
+    } as unknown as TestRegion;
+    const activeElement = {} as Element;
+    const fetch = vi.fn<typeof globalThis.fetch>(async () => new Response("new"));
+    vi.stubGlobal("fetch", fetch);
+    vi.stubGlobal("Element", class TestElement {});
+    Object.setPrototypeOf(activeElement, Element.prototype);
+    vi.stubGlobal("document", { activeElement, hidden: false });
+
+    await refreshRegion(region);
+
+    expect(region.contains).toHaveBeenCalledWith(activeElement);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("uses the interval callback to refresh regions", async () => {
     const region = createRegion();
     const root = {

@@ -6,6 +6,7 @@ import {
   approveWord,
   endWordCloud,
   getActivePublicQuestion,
+  getPanelMode,
   hideQuestion,
   hideWord,
   listAudienceQuestions,
@@ -18,6 +19,7 @@ import {
   mergeWord,
   proposeQuestion,
   resetPanel,
+  setPanelMode,
   submitWord,
   voteForQuestion,
   voteForWord,
@@ -263,6 +265,16 @@ describe("panel state", () => {
     expect(approveQuestion(question?.id ?? "")).toBe(true);
     expect(approveQuestion(question?.id ?? "")).toBe(false);
     expect(listAudienceQuestions("attendee-2").map((entry) => entry.status)).toEqual(["available"]);
+  });
+
+  it("tracks the active panel mode and resets it for the next panel", () => {
+    expect(getPanelMode()).toBe("qa");
+
+    setPanelMode("wordcloud");
+    expect(getPanelMode()).toBe("wordcloud");
+
+    resetPanel();
+    expect(getPanelMode()).toBe("qa");
   });
 
   it("keeps active questions first even when selected after another question", () => {

@@ -6,7 +6,7 @@
 
 ## Context
 
-Future Frontend needs a small audience-question app for conference panels, including both moderated questions and lightweight word-cloud prompts. Attendee question, attendee word, and word-screen pages should update when moderators approve new content, without requiring the audience to refresh manually. The app also needs multiplayer behavior across Worker isolates, so a question or word approved through one request must become visible to other attendees and screen views through the same authoritative room state.
+Future Frontend needs a small audience-question app for conference panels, including both moderated questions and lightweight word-cloud prompts. Attendee, MC, moderator, and word-screen pages should update when other people submit, approve, or vote on content, without requiring a hard refresh. The app also needs multiplayer behavior across Worker isolates, so a question or word approved through one request must become visible through the same authoritative room state.
 
 The near-term requirement is low budget and operational simplicity. Attendees should not need accounts, and the UI should work well on mobile phones. MC and moderator access still needs a trust boundary, but the system does not currently need complex analytics or a separate historical database.
 
@@ -18,13 +18,13 @@ The app uses:
 
 - plain HTML forms and redirects for state-changing actions
 - `PANEL_ROOM`, a Cloudflare Durable Object binding to the exported `PanelRoom` class
-- a typed external polling module for attendee question, attendee word, and word-screen fragments
+- a typed external polling module for attendee, operator, and word-screen fragments
 - anonymous attendee cookies for one-vote-per-question and one-vote-per-word behavior
 - IP-based throttling for question, word, and vote submissions
 - signed MC and moderator role cookies
 - `AUTH_SECRET`, `MC_PASSCODE`, and `MODERATOR_PASSCODE` environment variables for privileged access
 
-Question and word-cloud state is coordinated through the default `PanelRoom` Durable Object. Attendee-submitted questions remain pending until a moderator approves them; approved questions become visible on already-open attendee pages through a lightweight polling fragment. Duplicate submitted words increment the existing pending or approved entry, and approved words become visible on already-open attendee word and word-screen pages through the same polling module. Moderators can approve, hide, merge, and end word clouds. Ending a word cloud stops attendee and screen visibility but keeps the word data visible to the moderator until reset. A moderator reset clears the room state explicitly.
+Question and word-cloud state is coordinated through the default `PanelRoom` Durable Object. The room defaults to QA mode, and missing or invalid mode values fall back to QA. Attendee-submitted questions remain pending until a moderator approves them; approved questions become visible on already-open attendee and MC pages through lightweight polling fragments. Moderator queues use the same polling module to show pending submissions, vote counts, word-cloud changes, and moderation state from other requests. Duplicate submitted words increment the existing pending or approved entry, and approved words become visible on already-open attendee word and word-screen pages through the same polling module. Moderators can approve, hide, merge, and end word clouds. Ending a word cloud stops attendee and screen visibility but keeps the word data visible to the moderator until reset. A moderator reset clears the room state explicitly.
 
 ## Trigger
 

@@ -73,6 +73,24 @@ describe("worker", () => {
     await expect(handleRequest(new Request("http://example.com/questions/live")).then((response) => response.text())).resolves.toContain(
       "What does durable frontend architecture mean in practice?",
     );
+    await expect(
+      handleRequest(new Request("http://example.com/moderator/questions/live", { headers: { cookie: moderatorCookie } }), env).then(
+        (response) => response.text(),
+      ),
+    ).resolves.toContain("What does durable frontend architecture mean in practice?");
+
+    const mcLogin = await handleRequest(
+      new Request("http://example.com/mc/login", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ passcode: "mc-passcode" }),
+      }),
+      env,
+    );
+    const mcCookie = mcLogin.headers.get("set-cookie") ?? "";
+    await expect(
+      handleRequest(new Request("http://example.com/mc/live", { headers: { cookie: mcCookie } }), env).then((response) => response.text()),
+    ).resolves.toContain("What does durable frontend architecture mean in practice?");
 
     const attendeeCookie = pageResponse.headers.get("set-cookie") ?? "";
     const voteResponse = await handleRequest(
@@ -87,6 +105,11 @@ describe("worker", () => {
     await expect(
       handleRequest(new Request("http://example.com/", { headers: { cookie: attendeeCookie } })).then((response) => response.text()),
     ).resolves.toContain("Voted");
+    await expect(
+      handleRequest(new Request("http://example.com/moderator/questions/live", { headers: { cookie: moderatorCookie } }), env).then(
+        (response) => response.text(),
+      ),
+    ).resolves.toContain('class="text-2xl font-semibold leading-none">2</span>');
   });
 
   it("accepts words, lets moderator approve and end the cloud", async () => {
@@ -120,11 +143,20 @@ describe("worker", () => {
       env,
     );
     const moderatorCookie = moderatorLogin.headers.get("set-cookie") ?? "";
+    await handleRequest(
+      new Request("http://example.com/moderator/mode", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", cookie: moderatorCookie },
+        body: new URLSearchParams({ mode: "wordcloud" }),
+      }),
+      env,
+    );
     const moderatorPage = await handleRequest(new Request("http://example.com/moderator", { headers: { cookie: moderatorCookie } }), env);
     const moderatorHtml = await moderatorPage.text();
     const wordId = /name="wordId" value="([^"]+)"/u.exec(moderatorHtml)?.[1] ?? "";
 
     expect(moderatorHtml).toContain("Great!");
+    expect(moderatorHtml).not.toContain("Add moderator question");
     expect(wordId).not.toBe("");
 
     await handleRequest(
@@ -142,6 +174,11 @@ describe("worker", () => {
     await expect(handleRequest(new Request("http://example.com/words/live")).then((response) => response.text())).resolves.toContain(
       "Great! 2",
     );
+    await expect(
+      handleRequest(new Request("http://example.com/moderator/words/live", { headers: { cookie: moderatorCookie } }), env).then(
+        (response) => response.text(),
+      ),
+    ).resolves.toContain("Great!");
     await expect(handleRequest(new Request("http://example.com/words/screen/live")).then((response) => response.text())).resolves.toContain(
       "Great!",
     );
@@ -179,6 +216,75 @@ describe("worker", () => {
         response.text(),
       ),
     ).resolves.toContain("Great!");
+  });
+
+  it("lets moderator switch the attendee root between QA and wordcloud modes", async () => {
+    const moderatorLogin = await handleRequest(
+      new Request("http://example.com/moderator/login", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ passcode: "mod-passcode" }),
+      }),
+      env,
+    );
+    const moderatorCookie = moderatorLogin.headers.get("set-cookie") ?? "";
+
+    await expect(handleRequest(new Request("http://example.com/")).then((response) => response.text())).resolves.toContain(
+      "Ask a question",
+    );
+
+    const modeResponse = await handleRequest(
+      new Request("http://example.com/moderator?mode=wordcloud", { headers: { cookie: moderatorCookie } }),
+      env,
+    );
+    expect(modeResponse.status).toBe(303);
+    expect(modeResponse.headers.get("location")).toBe("/moderator");
+    await expect(handleRequest(new Request("http://example.com/live")).then((response) => response.text())).resolves.toContain("Add word");
+    await expect(
+      handleRequest(new Request("http://example.com/moderator/live", { headers: { cookie: moderatorCookie } }), env).then((response) =>
+        response.text(),
+      ),
+    ).resolves.toContain("No words yet.");
+
+    const wordResponse = await handleRequest(
+      new Request("http://example.com/", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "198.51.100.41" },
+        body: new URLSearchParams({ word: "Mode" }),
+      }),
+    );
+    expect(wordResponse.headers.get("location")).toContain("Word+added");
+
+    const moderatorWordHtml = await handleRequest(
+      new Request("http://example.com/moderator", { headers: { cookie: moderatorCookie } }),
+      env,
+    ).then((response) => response.text());
+    expect(moderatorWordHtml).toContain("Mode");
+    expect(moderatorWordHtml).not.toContain("No questions to moderate.");
+
+    await expect(
+      handleRequest(new Request("http://example.com/moderator/mode", { headers: { cookie: moderatorCookie } }), env).then((response) =>
+        response.headers.get("location"),
+      ),
+    ).resolves.toBe("/moderator");
+    await expect(handleRequest(new Request("http://example.com/live")).then((response) => response.text())).resolves.toContain(
+      "Ask a question",
+    );
+
+    await handleRequest(new Request("http://example.com/moderator/mode?mode=wordcloud", { headers: { cookie: moderatorCookie } }), env);
+    await expect(handleRequest(new Request("http://example.com/live")).then((response) => response.text())).resolves.toContain("Add word");
+
+    await handleRequest(
+      new Request("http://example.com/moderator/mode", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", cookie: moderatorCookie },
+        body: new URLSearchParams({ mode: "qa" }),
+      }),
+      env,
+    );
+    await expect(handleRequest(new Request("http://example.com/live")).then((response) => response.text())).resolves.toContain(
+      "Ask a question",
+    );
   });
 
   it("routes panel state through the durable object room binding", async () => {
