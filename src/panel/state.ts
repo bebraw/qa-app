@@ -155,7 +155,12 @@ export function isLoginRateLimited(input: {
   readonly ipAddress: string;
   readonly now?: number;
 }): boolean {
-  return isCurrentlyRateLimited(loginRateLimitKey(input.role, input.ipAddress), maximumFailedLoginAttempts, loginWindowMs, input.now ?? Date.now());
+  return isCurrentlyRateLimited(
+    loginRateLimitKey(input.role, input.ipAddress),
+    maximumFailedLoginAttempts,
+    loginWindowMs,
+    input.now ?? Date.now(),
+  );
 }
 
 export function recordFailedLoginAttempt(input: {

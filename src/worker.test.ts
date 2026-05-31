@@ -285,9 +285,7 @@ describe("worker", () => {
       env,
     );
     expect(getQueryResponse.status).toBe(200);
-    await expect(handleRequest(new Request("http://example.com/live")).then((response) => response.text())).resolves.toContain(
-      "Add word",
-    );
+    await expect(handleRequest(new Request("http://example.com/live")).then((response) => response.text())).resolves.toContain("Add word");
 
     await handleRequest(
       new Request("http://example.com/moderator/mode", {
