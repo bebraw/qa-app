@@ -10,6 +10,7 @@ const availableQuestion: PublicQuestion = {
   votes: 3,
   status: "available",
   votedByCurrentUser: false,
+  submittedByCurrentUser: false,
 };
 
 const activeQuestion: PublicQuestion = {
@@ -39,6 +40,7 @@ const approvedWord: PublicWord = {
   count: 4,
   status: "approved",
   votedByCurrentUser: false,
+  submittedByCurrentUser: false,
 };
 
 const pendingWord: PublicWord = {
@@ -69,6 +71,9 @@ describe("panel views", () => {
     expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain("Readable");
     expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain("font-size:");
     expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain('name="word"');
+    expect(
+      renderAudiencePage({ mode: "qa", questions: [{ ...availableQuestion, submittedByCurrentUser: true }], words: [] }),
+    ).not.toContain(">+1</button>");
   });
 
   it("renders protected role login setup states", () => {
@@ -172,6 +177,11 @@ describe("panel views", () => {
     expect(wordHtml).toContain("Readable");
     expect(wordHtml).toContain('aria-label="Vote for Readable, 4 votes"');
     expect(wordHtml).toContain("transform:rotate");
+    expect(
+      renderAudiencePage({ mode: "wordcloud", questions: [], words: [{ ...approvedWord, submittedByCurrentUser: true }] }),
+    ).not.toContain('name="wordId"');
+    expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [pendingWord] })).toContain("Under consideration");
+    expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [pendingWord] })).not.toContain('name="wordId"');
     expect(renderWordScreenPage([approvedWord])).toContain("Readable");
     expect(renderWordScreenPage([approvedWord])).toContain("min-h-[72vh]");
     expect(renderWordScreenPage([approvedWord])).toContain('data-live-src="/words/screen/live"');

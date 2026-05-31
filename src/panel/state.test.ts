@@ -63,12 +63,13 @@ describe("panel state", () => {
       "pending",
     ]);
     expect(listAudienceQuestions("attendee-2").map((question) => [question.text, question.votes, question.votedByCurrentUser])).toEqual([
-      ["How should designers and developers share ownership?", 2, true],
+      ["How should designers and developers share ownership?", 1, true],
     ]);
     expect(approveQuestion(first.question?.id ?? "")).toBe(true);
     expect(listAudienceQuestions("attendee-2").map((question) => question.text)).toContain(
       "What should teams stop doing with frontend architecture?",
     );
+    expect(voteForQuestion({ id: first.question?.id ?? "", clientId: "attendee-1", ipAddress: "198.51.100.4", now: 6 })).toBe(false);
   });
 
   it("rate limits question submissions by IP address", () => {
@@ -292,6 +293,7 @@ describe("panel state", () => {
     expect(approveQuestion(question?.id ?? "")).toBe(true);
     expect(approveQuestion(question?.id ?? "")).toBe(false);
     expect(listAudienceQuestions("attendee-2").map((entry) => entry.status)).toEqual(["available"]);
+    expect(listAudienceQuestions("attendee-1").map((entry) => [entry.status, entry.submittedByCurrentUser])).toEqual([["available", true]]);
   });
 
   it("tracks the active panel mode and resets it for the next panel", () => {
@@ -343,7 +345,13 @@ describe("panel state", () => {
     expect(first.word?.status).toBe("pending");
     expect(duplicate.message).toBe("Word counted.");
     expect(listModeratorWords("moderator-1").map((word) => [word.text, word.count, word.status])).toEqual([["Great!", 2, "pending"]]);
-    expect(listAudienceWords("attendee-1")).toEqual([]);
+    expect(listAudienceWords("attendee-1").map((word) => [word.text, word.status, word.submittedByCurrentUser])).toEqual([
+      ["Great!", "pending", true],
+    ]);
+    expect(listAudienceWords("attendee-2").map((word) => [word.text, word.status, word.submittedByCurrentUser])).toEqual([
+      ["Great!", "pending", true],
+    ]);
+    expect(listAudienceWords("attendee-3")).toEqual([]);
 
     expect(approveWord(first.word?.id ?? "")).toBe(true);
     expect(listAudienceWords("attendee-1").map((word) => [word.text, word.count])).toEqual([["Great!", 2]]);
@@ -359,10 +367,14 @@ describe("panel state", () => {
 
     expect(voteForWord({ id: word?.id ?? "", clientId: "attendee-2", ipAddress: "198.51.100.2", now: 2 })).toBe(false);
     expect(approveWord(word?.id ?? "")).toBe(true);
+    expect(voteForWord({ id: word?.id ?? "", clientId: "attendee-1", ipAddress: "198.51.100.1", now: 2 })).toBe(false);
     expect(voteForWord({ id: word?.id ?? "", clientId: "attendee-2", ipAddress: "198.51.100.2", now: 3 })).toBe(true);
     expect(voteForWord({ id: word?.id ?? "", clientId: "attendee-2", ipAddress: "198.51.100.2", now: 4 })).toBe(false);
 
     expect(listAudienceWords("attendee-2").map((entry) => [entry.count, entry.votedByCurrentUser])).toEqual([[2, true]]);
+    expect(listAudienceWords("attendee-1").map((entry) => [entry.count, entry.submittedByCurrentUser, entry.votedByCurrentUser])).toEqual([
+      [2, true, false],
+    ]);
   });
 
   it("lets moderator merge word variants into one entry", () => {

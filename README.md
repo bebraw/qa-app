@@ -49,7 +49,7 @@ Panel state is coordinated through a SQLite-backed Cloudflare Durable Object roo
 
 The moderator controls whether `/` is in QA or wordcloud mode. In QA mode, `/moderator` shows questions to moderate. In wordcloud mode, `/moderator` shows word-cloud controls instead.
 
-Regular attendee interactions stay at `/`: asking questions, submitting words, and voting all post back to `/` regardless of the active panel mode.
+Regular attendee interactions stay at `/`: asking questions, submitting words, and voting all post back to `/` regardless of the active panel mode. Attendees see their own pending submissions as under consideration and cannot vote for questions or words they submitted.
 
 ## Deploy To Cloudflare
 

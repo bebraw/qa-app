@@ -374,7 +374,11 @@ function cloudWord(word: PublicWord, variant: "attendee" | "screen", maximumCoun
   const buttonClass =
     "inline-block rounded-md px-1 leading-none text-app-text transition hover:text-app-text-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35";
 
-  if (word.votedByCurrentUser) {
+  if (word.status === "pending") {
+    return `<span class="${buttonClass} opacity-60" style="${style}" aria-label="${escapeHtml(label)}">${escapeHtml(word.text)}${count}<span class="ml-2 align-middle text-[0.3em] font-semibold uppercase tracking-[0.14em] text-app-text-soft">Under consideration</span></span>`;
+  }
+
+  if (word.votedByCurrentUser || word.submittedByCurrentUser) {
     return `<button class="${buttonClass} opacity-60" style="${style}" type="submit" aria-label="${escapeHtml(label)}" disabled>${escapeHtml(word.text)}${count}</button>`;
   }
 
@@ -426,7 +430,7 @@ function actions(question: PublicQuestion, role: "attendee" | "mc" | "moderator"
     : actionButton(voteAction, question.id, "+1", "border-app-line bg-app-surface text-app-text hover:border-app-accent/40");
 
   if (role === "attendee") {
-    return question.status === "pending" ? "" : voteButton;
+    return question.status === "pending" || question.submittedByCurrentUser ? "" : voteButton;
   }
 
   if (role === "mc") {

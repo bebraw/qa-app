@@ -10,6 +10,7 @@ export interface PanelQuestion {
   readonly id: string;
   readonly text: string;
   readonly proposedBy: PanelRole;
+  readonly submittedById: string;
   readonly createdAt: number;
   readonly voterIds: ReadonlySet<string>;
   readonly status: QuestionStatus;
@@ -23,6 +24,7 @@ export interface PublicQuestion {
   readonly votes: number;
   readonly status: QuestionStatus;
   readonly votedByCurrentUser: boolean;
+  readonly submittedByCurrentUser: boolean;
 }
 
 export interface QuestionSubmissionResult {
@@ -37,6 +39,7 @@ export interface PanelWord {
   readonly normalizedText: string;
   readonly createdAt: number;
   readonly submissionCount: number;
+  readonly submitterIds: ReadonlySet<string>;
   readonly voterIds: ReadonlySet<string>;
   readonly status: WordStatus;
 }
@@ -47,6 +50,7 @@ export interface PublicWord {
   readonly count: number;
   readonly status: WordStatus;
   readonly votedByCurrentUser: boolean;
+  readonly submittedByCurrentUser: boolean;
 }
 
 export interface WordSubmissionResult {
@@ -71,6 +75,7 @@ interface SerializedQuestion {
   readonly id: string;
   readonly text: string;
   readonly proposedBy: PanelRole;
+  readonly submittedById?: string | undefined;
   readonly createdAt: number;
   readonly voterIds: string[];
   readonly status: QuestionStatus;
@@ -82,6 +87,7 @@ interface SerializedWord {
   readonly normalizedText: string;
   readonly createdAt: number;
   readonly submissionCount: number;
+  readonly submitterIds?: string[] | undefined;
   readonly voterIds: string[];
   readonly status: WordStatus;
 }
@@ -136,8 +142,9 @@ export function proposeQuestion(input: {
     id,
     text,
     proposedBy: input.role,
+    submittedById: input.clientId,
     createdAt: now,
-    voterIds: new Set([input.clientId]),
+    voterIds: new Set(),
     status: input.role === "moderator" ? "available" : "pending",
   };
 
@@ -194,6 +201,7 @@ export function voteForQuestion(input: {
     question.status === "pending" ||
     question.status === "hidden" ||
     question.status === "done" ||
+    question.submittedById === input.clientId ||
     question.voterIds.has(input.clientId)
   ) {
     return false;
@@ -246,6 +254,7 @@ export function submitWord(input: {
     const word = {
       ...existing,
       submissionCount: existing.submissionCount + 1,
+      submitterIds: new Set([...existing.submitterIds, input.clientId]),
     };
     store.words.set(existing.id, word);
     return { ok: true, message: "Word counted.", word: toPublicWord(word, input.clientId) };
@@ -257,6 +266,7 @@ export function submitWord(input: {
     normalizedText,
     createdAt: now,
     submissionCount: 1,
+    submitterIds: new Set([input.clientId]),
     voterIds: new Set(),
     status: "pending",
   };
@@ -290,7 +300,7 @@ export function voteForWord(input: {
 
   const word = store.words.get(input.id);
 
-  if (!word || word.status !== "approved" || word.voterIds.has(input.clientId)) {
+  if (!word || word.status !== "approved" || word.submitterIds.has(input.clientId) || word.voterIds.has(input.clientId)) {
     return false;
   }
 
@@ -335,6 +345,7 @@ export function mergeWord(sourceId: string, targetText: string): boolean {
   store.words.set(target.id, {
     ...target,
     submissionCount: target.submissionCount + source.submissionCount,
+    submitterIds: new Set([...target.submitterIds, ...source.submitterIds]),
     voterIds: new Set([...target.voterIds, ...source.voterIds]),
     status: target.status === "approved" || source.status === "approved" ? "approved" : "pending",
   });
@@ -406,7 +417,7 @@ export function listAudienceQuestions(clientId: string): PublicQuestion[] {
       (question) =>
         question.status === "available" ||
         question.status === "active" ||
-        (question.status === "pending" && question.voterIds.has(clientId)),
+        (question.status === "pending" && question.submittedById === clientId),
     ),
   ).map((question) => toPublicQuestion(question, clientId));
 }
@@ -433,7 +444,11 @@ export function listAudienceWords(clientId: string): PublicWord[] {
     return [];
   }
 
-  return sortWords([...store.words.values()].filter((word) => word.status === "approved")).map((word) => toPublicWord(word, clientId));
+  return sortWords(
+    [...store.words.values()].filter(
+      (word) => word.status === "approved" || (word.status === "pending" && word.submitterIds.has(clientId)),
+    ),
+  ).map((word) => toPublicWord(word, clientId));
 }
 
 export function listModeratorWords(clientId: string): PublicWord[] {
@@ -469,6 +484,7 @@ export function serializePanelState(): SerializedPanelState {
     })),
     words: [...store.words.values()].map((word) => ({
       ...word,
+      submitterIds: [...word.submitterIds],
       voterIds: [...word.voterIds],
     })),
     rateLimits: [...store.rateLimits.entries()].map(([key, bucket]) => [key, bucket.timestamps]),
@@ -486,6 +502,7 @@ export function loadPanelState(state: SerializedPanelState | undefined): void {
   for (const question of state.questions) {
     store.questions.set(question.id, {
       ...question,
+      submittedById: question.submittedById ?? question.voterIds[0] ?? "",
       voterIds: new Set(question.voterIds),
     });
   }
@@ -493,6 +510,7 @@ export function loadPanelState(state: SerializedPanelState | undefined): void {
   for (const word of state.words) {
     store.words.set(word.id, {
       ...word,
+      submitterIds: new Set(word.submitterIds ?? []),
       voterIds: new Set(word.voterIds),
     });
   }
@@ -534,6 +552,7 @@ function toPublicQuestion(question: PanelQuestion, clientId: string): PublicQues
     votes: question.voterIds.size,
     status: question.status,
     votedByCurrentUser: question.voterIds.has(clientId),
+    submittedByCurrentUser: question.submittedById === clientId,
   };
 }
 
@@ -544,6 +563,7 @@ function toPublicWord(word: PanelWord, clientId: string): PublicWord {
     count: word.submissionCount + word.voterIds.size,
     status: word.status,
     votedByCurrentUser: word.voterIds.has(clientId),
+    submittedByCurrentUser: word.submitterIds.has(clientId),
   };
 }
 

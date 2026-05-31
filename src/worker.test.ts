@@ -115,7 +115,7 @@ describe("worker", () => {
       handleRequest(new Request("http://example.com/moderator/questions/live", { headers: { cookie: moderatorCookie } }), env).then(
         (response) => response.text(),
       ),
-    ).resolves.toContain('class="text-2xl font-semibold leading-none">2</span>');
+    ).resolves.toContain('class="text-2xl font-semibold leading-none">1</span>');
   });
 
   it("accepts words, lets moderator approve and end the cloud", async () => {
@@ -156,6 +156,11 @@ describe("worker", () => {
     expect(duplicateResponse.headers.get("location")).toContain("Word+counted");
     await expect(handleRequest(new Request("http://example.com/words")).then((response) => response.status)).resolves.toBe(404);
     await expect(handleRequest(new Request("http://example.com/")).then((response) => response.text())).resolves.toContain("No words yet.");
+    await expect(
+      handleRequest(new Request("http://example.com/", { headers: { cookie: cookieHeaderFromResponse(firstResponse) } })).then((response) =>
+        response.text(),
+      ),
+    ).resolves.toContain("Under consideration");
 
     const moderatorPage = await handleRequest(new Request("http://example.com/moderator", { headers: { cookie: moderatorCookie } }), env);
     const moderatorHtml = await moderatorPage.text();

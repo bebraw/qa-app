@@ -40,6 +40,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 - [ ] Attendees can add anonymous questions that remain pending until moderator approval.
 - [ ] Attendees can see their own pending questions as under consideration while those questions wait for moderator approval.
 - [ ] Attendees can submit anonymous word-cloud words.
+- [ ] Attendees can see their own pending word-cloud words as under consideration while those words wait for moderator approval.
 - [ ] Attendees can vote once per question and can vote on multiple questions.
 - [ ] Attendees can vote once per approved word-cloud word and can vote on multiple words.
 - [ ] Approved word-cloud entries render as a centered word cloud where higher-count words are visually larger.
@@ -72,6 +73,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 - Hidden and done questions must not appear in the attendee queue.
 - Pending questions must not appear in other attendee queues, the MC queue, or the question screen.
 - Pending questions may appear only to the submitting attendee and must not be votable before approval.
+- Attendees must not be able to vote for questions or word-cloud words they submitted.
 - Approved questions must appear on already-open attendee question pages without a manual browser refresh.
 - MC and moderator queues must update when other attendees submit, vote, or when another operator changes moderation state.
 - Focus on an MC queue action must not prevent the MC queue from receiving live updates.
@@ -117,6 +119,12 @@ The implementation should stay lightweight enough to run inside the existing Wor
 - Given: a word-cloud entry already exists as pending or approved
 - When: another attendee submits the same normalized word
 - Then: the existing entry count increments without creating a separate approval item
+
+**Scenario: Attendee sees a pending word**
+
+- Given: word-cloud mode is active
+- When: an attendee submits a valid word
+- Then: the word appears as under consideration only to submitting attendees until moderator approval
 
 **Scenario: Moderator approves a word-cloud entry**
 
