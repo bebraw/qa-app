@@ -340,16 +340,27 @@ describe("panel state", () => {
       ipAddress: "198.51.100.2",
       now: 2,
     });
+    vi.mocked(globalThis.crypto.randomUUID).mockReturnValue("00000000-0000-4000-8000-000000000002");
+    submitWord({
+      text: "Alpha",
+      clientId: "attendee-2",
+      ipAddress: "198.51.100.2",
+      now: 3,
+    });
 
     expect(first.ok).toBe(true);
     expect(first.word?.status).toBe("pending");
     expect(duplicate.message).toBe("Word added.");
     expect(duplicate.word?.count).toBe(1);
-    expect(listModeratorWords("moderator-1").map((word) => [word.text, word.count, word.status])).toEqual([["Great!", 2, "pending"]]);
+    expect(listModeratorWords("moderator-1").map((word) => [word.text, word.count, word.status])).toEqual([
+      ["Great!", 2, "pending"],
+      ["Alpha", 1, "pending"],
+    ]);
     expect(listAudienceWords("attendee-1").map((word) => [word.text, word.count, word.status, word.submittedByCurrentUser])).toEqual([
       ["Great!", 1, "pending", true],
     ]);
     expect(listAudienceWords("attendee-2").map((word) => [word.text, word.count, word.status, word.submittedByCurrentUser])).toEqual([
+      ["Alpha", 1, "pending", true],
       ["Great!", 1, "pending", true],
     ]);
     expect(listAudienceWords("attendee-3")).toEqual([]);

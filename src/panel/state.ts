@@ -444,11 +444,11 @@ export function listAudienceWords(clientId: string): PublicWord[] {
     return [];
   }
 
-  return sortWords(
-    [...store.words.values()].filter(
-      (word) => word.status === "approved" || (word.status === "pending" && word.submitterIds.has(clientId)),
-    ),
-  ).map((word) => toPublicWord(word, clientId));
+  return sortPublicWords(
+    [...store.words.values()]
+      .filter((word) => word.status === "approved" || (word.status === "pending" && word.submitterIds.has(clientId)))
+      .map((word) => toPublicWord(word, clientId)),
+  );
 }
 
 export function listModeratorWords(clientId: string): PublicWord[] {
@@ -604,6 +604,24 @@ function sortWords(words: PanelWord[]): PanelWord[] {
     }
 
     return left.createdAt - right.createdAt;
+  });
+}
+
+function sortPublicWords(words: PublicWord[]): PublicWord[] {
+  return [...words].sort((left, right) => {
+    const countDifference = right.count - left.count;
+
+    if (countDifference !== 0) {
+      return countDifference;
+    }
+
+    const textDifference = left.text.localeCompare(right.text, "en");
+
+    if (textDifference !== 0) {
+      return textDifference;
+    }
+
+    return left.id.localeCompare(right.id);
   });
 }
 
