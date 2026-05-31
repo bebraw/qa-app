@@ -48,6 +48,50 @@ Routes:
 
 Panel state is in memory. The moderator reset clears it explicitly, and a Worker isolate restart can clear it implicitly. Ended word-cloud data stays visible to the moderator until reset.
 
+## Deploy To Cloudflare
+
+Before deploying, choose the production Worker name in `wrangler.jsonc`. The default is currently `vibe-template-worker`.
+
+1. Authenticate Wrangler:
+
+   ```sh
+   npx wrangler login
+   ```
+
+2. Create strong production values for the required secrets:
+
+   ```sh
+   openssl rand -base64 48
+   ```
+
+3. Store the secrets in Cloudflare Workers. Do not commit production values to `.dev.vars`.
+
+   ```sh
+   npx wrangler secret put AUTH_SECRET
+   npx wrangler secret put MC_PASSCODE
+   npx wrangler secret put MODERATOR_PASSCODE
+   ```
+
+4. Run the local release checks:
+
+   ```sh
+   npm run quality:gate
+   npm run ci:local
+   ```
+
+5. Deploy:
+
+   ```sh
+   npm run deploy
+   ```
+
+6. Smoke-test the deployed Worker:
+   - Open `/api/health` and confirm it returns `{"ok":true,...}`.
+   - Open `/`, `/words`, `/mc`, `/moderator`, `/screen`, and `/words/screen`.
+   - Confirm MC and moderator views require the production passcodes.
+
+The app keeps questions and word-cloud data in Worker memory. Deploys, isolate restarts, and multi-isolate routing can clear or split that state, so reset and test the room flow before using the Worker live.
+
 ## Verification
 
 - Run the fast local gate with `npm run quality:gate:fast` during normal iteration.
