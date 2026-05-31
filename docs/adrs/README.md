@@ -61,6 +61,7 @@ No accepted-only ADRs are currently pending implementation.
 | [ADR-026](./implemented/ADR-026-run-affected-guardrails-when-possible.md)             | Implemented | Run affected-file guardrails during iteration and pre-push when checks can be scoped safely.   |
 | [ADR-027](./implemented/ADR-027-use-server-rendered-in-memory-panel-queue.md)         | Implemented | Use a Durable Object-backed panel room for the live conference workflow.                       |
 | [ADR-028](./implemented/ADR-028-lock-local-agent-ci-installs.md)                      | Implemented | Lock local Agent CI installs so parallel jobs share the warm dependency tree safely.           |
+| [ADR-029](./implemented/ADR-029-use-incremental-local-mutation-gate.md)               | Implemented | Use incremental Stryker mutation testing for repeated local quality-gate runs.                 |
 
 ## Creating A New ADR
 
