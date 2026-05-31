@@ -15,11 +15,13 @@ import {
   approveQuestion,
   approveWord,
   chooseActiveQuestion,
+  clearFailedLoginAttempts,
   endWordCloud,
   getActivePublicQuestion,
   getPanelMode,
   hideQuestion,
   hideWord,
+  isLoginRateLimited,
   listAudienceQuestions,
   listAudienceWords,
   listMcQuestions,
@@ -30,6 +32,7 @@ import {
   mergeWord,
   markActiveQuestionDone,
   proposeQuestion,
+  recordFailedLoginAttempt,
   resetPanel,
   serializePanelState,
   setPanelMode,
@@ -376,10 +379,21 @@ async function login(
   }
 
   const formData = await request.formData();
+  const ipAddress = getClientIp(request);
+
+  if (isLoginRateLimited({ role, ipAddress })) {
+    return redirectResponse(withNotice(redirectPath, "Please wait before trying again."), headers);
+  }
 
   if (!(await passcodeMatches(role, getFormValue(formData, "passcode"), env))) {
+    if (recordFailedLoginAttempt({ role, ipAddress })) {
+      return redirectResponse(withNotice(redirectPath, "Please wait before trying again."), headers);
+    }
+
     return redirectResponse(withNotice(redirectPath, "Passcode not accepted."), headers);
   }
+
+  clearFailedLoginAttempts({ role, ipAddress });
 
   const responseHeaders = new Headers(headers);
   responseHeaders.append("set-cookie", await createRoleCookie(role, env, isSecureRequest(request)));

@@ -367,6 +367,36 @@ describe("worker", () => {
     expect(wrongLogin.headers.get("location")).toContain("Passcode+not+accepted");
     expect(wrongLogin.headers.get("location")).toContain("/mc");
 
+    for (let index = 0; index < 8; index += 1) {
+      await handleRequest(
+        new Request("http://example.com/mc/login", {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.90" },
+          body: new URLSearchParams({ passcode: "wrong" }),
+        }),
+        env,
+      );
+    }
+    const throttledLogin = await handleRequest(
+      new Request("http://example.com/mc/login", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.90" },
+        body: new URLSearchParams({ passcode: "mc-passcode" }),
+      }),
+      env,
+    );
+    expect(throttledLogin.headers.get("location")).toContain("Please+wait+before+trying+again");
+
+    const otherIpLogin = await handleRequest(
+      new Request("http://example.com/mc/login", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "203.0.113.91" },
+        body: new URLSearchParams({ passcode: "mc-passcode" }),
+      }),
+      env,
+    );
+    expect(cookieHeaderFromResponse(otherIpLogin)).toContain("panel_auth_mc=");
+
     const mcAction = await handleRequest(new Request("http://example.com/mc/select", { method: "POST" }), env);
     expect(mcAction.headers.get("location")).toContain("Sign+in+first");
     expect(mcAction.headers.get("location")).toContain("/mc");

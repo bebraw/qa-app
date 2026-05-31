@@ -110,6 +110,8 @@ const voteWindowMs = 60_000;
 const maximumWordLength = 40;
 const maximumWordSubmissions = 30;
 const wordWindowMs = 60_000;
+const maximumFailedLoginAttempts = 8;
+const loginWindowMs = 10 * 60_000;
 
 export function proposeQuestion(input: {
   readonly text: string;
@@ -146,6 +148,26 @@ export function proposeQuestion(input: {
     message: input.role === "moderator" ? "Question added." : "Question sent.",
     question: toPublicQuestion(question, input.clientId),
   };
+}
+
+export function isLoginRateLimited(input: {
+  readonly role: Exclude<PanelRole, "attendee">;
+  readonly ipAddress: string;
+  readonly now?: number;
+}): boolean {
+  return isCurrentlyRateLimited(loginRateLimitKey(input.role, input.ipAddress), maximumFailedLoginAttempts, loginWindowMs, input.now ?? Date.now());
+}
+
+export function recordFailedLoginAttempt(input: {
+  readonly role: Exclude<PanelRole, "attendee">;
+  readonly ipAddress: string;
+  readonly now?: number;
+}): boolean {
+  return isRateLimited(loginRateLimitKey(input.role, input.ipAddress), maximumFailedLoginAttempts, loginWindowMs, input.now ?? Date.now());
+}
+
+export function clearFailedLoginAttempts(input: { readonly role: Exclude<PanelRole, "attendee">; readonly ipAddress: string }): void {
+  store.rateLimits.delete(loginRateLimitKey(input.role, input.ipAddress));
 }
 
 export function voteForQuestion(input: {
@@ -567,6 +589,17 @@ function isRateLimited(key: string, maximum: number, windowMs: number, now: numb
 
   store.rateLimits.set(key, { timestamps: [...recentTimestamps, now] });
   return false;
+}
+
+function isCurrentlyRateLimited(key: string, maximum: number, windowMs: number, now: number): boolean {
+  const bucket = store.rateLimits.get(key) ?? { timestamps: [] };
+  const recentTimestamps = bucket.timestamps.filter((timestamp) => now - timestamp < windowMs);
+  store.rateLimits.set(key, { timestamps: recentTimestamps });
+  return recentTimestamps.length >= maximum;
+}
+
+function loginRateLimitKey(role: Exclude<PanelRole, "attendee">, ipAddress: string): string {
+  return `login:${role}:${ipAddress}`;
 }
 
 function createQuestionId(): string {

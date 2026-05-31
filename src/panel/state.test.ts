@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   approveQuestion,
   chooseActiveQuestion,
+  clearFailedLoginAttempts,
   clearPanelStateForTests,
   approveWord,
   endWordCloud,
@@ -9,6 +10,7 @@ import {
   getPanelMode,
   hideQuestion,
   hideWord,
+  isLoginRateLimited,
   listAudienceQuestions,
   listAudienceWords,
   listMcQuestions,
@@ -18,6 +20,7 @@ import {
   markActiveQuestionDone,
   mergeWord,
   proposeQuestion,
+  recordFailedLoginAttempt,
   resetPanel,
   setPanelMode,
   submitWord,
@@ -81,6 +84,26 @@ describe("panel state", () => {
 
     expect(submissions.map((result) => result.ok)).toEqual([true, true, true, false]);
     expect(submissions[3]?.message).toBe("Please wait before adding another question.");
+  });
+
+  it("rate limits failed role login attempts by role and IP address", () => {
+    const attempts = Array.from({ length: 8 }, (_, index) =>
+      recordFailedLoginAttempt({
+        role: "moderator",
+        ipAddress: "203.0.113.20",
+        now: index,
+      }),
+    );
+
+    expect(attempts).toEqual([false, false, false, false, false, false, false, false]);
+    expect(isLoginRateLimited({ role: "moderator", ipAddress: "203.0.113.20", now: 9 })).toBe(true);
+    expect(recordFailedLoginAttempt({ role: "mc", ipAddress: "203.0.113.20", now: 10 })).toBe(false);
+    expect(recordFailedLoginAttempt({ role: "moderator", ipAddress: "203.0.113.21", now: 10 })).toBe(false);
+    expect(isLoginRateLimited({ role: "moderator", ipAddress: "203.0.113.20", now: 600_001 })).toBe(false);
+
+    recordFailedLoginAttempt({ role: "moderator", ipAddress: "203.0.113.22", now: 1 });
+    clearFailedLoginAttempts({ role: "moderator", ipAddress: "203.0.113.22" });
+    expect(isLoginRateLimited({ role: "moderator", ipAddress: "203.0.113.22", now: 2 })).toBe(false);
   });
 
   it("rejects short questions and releases rate-limit buckets after their window", () => {
