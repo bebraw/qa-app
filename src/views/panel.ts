@@ -341,7 +341,7 @@ function questionCard(question: PublicQuestion, role: "attendee" | "mc" | "moder
 function wordPill(word: PublicWord, role: "attendee" | "moderator"): string {
   const voteButton = word.votedByCurrentUser
     ? `<button class="h-10 rounded-full border border-app-line bg-app-surface px-4 text-sm font-semibold text-app-text-soft" type="submit" disabled>${escapeHtml(word.text)} ${word.count}</button>`
-    : `<form method="post" action="${role === "moderator" ? "/moderator/words/vote" : "/vote"}">
+    : `<form method="post" action="${role === "moderator" ? "/moderator/words/vote" : "/"}">
         <input type="hidden" name="wordId" value="${escapeHtml(word.id)}">
         <button class="h-10 rounded-full border border-app-line bg-white px-4 text-sm font-semibold text-app-text transition hover:bg-app-accent-ghost focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35" type="submit">${escapeHtml(word.text)} ${word.count}</button>
       </form>`;
@@ -378,7 +378,7 @@ function cloudWord(word: PublicWord, variant: "attendee" | "screen", maximumCoun
     return `<button class="${buttonClass} opacity-60" style="${style}" type="submit" aria-label="${escapeHtml(label)}" disabled>${escapeHtml(word.text)}${count}</button>`;
   }
 
-  return `<form class="inline-flex" method="post" action="/vote">
+  return `<form class="inline-flex" method="post" action="/">
     <input type="hidden" name="wordId" value="${escapeHtml(word.id)}">
     <button class="${buttonClass}" style="${style}" type="submit" aria-label="${escapeHtml(label)}">${escapeHtml(word.text)}${count}</button>
   </form>`;
@@ -420,7 +420,7 @@ function moderatorWordRow(word: PublicWord): string {
 }
 
 function actions(question: PublicQuestion, role: "attendee" | "mc" | "moderator"): string {
-  const voteAction = role === "moderator" ? "/moderator/vote" : "/vote";
+  const voteAction = role === "moderator" ? "/moderator/vote" : "/";
   const voteButton = question.votedByCurrentUser
     ? `<button class="h-10 rounded-lg border border-app-line bg-app-surface px-4 text-sm font-semibold text-app-text-soft" type="submit" disabled>Voted</button>`
     : actionButton(voteAction, question.id, "+1", "border-app-line bg-app-surface text-app-text hover:border-app-accent/40");

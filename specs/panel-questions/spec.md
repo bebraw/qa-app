@@ -15,7 +15,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 - **Auth model:** `src/panel/auth.ts` signs separate MC and moderator role cookies with `AUTH_SECRET`; MC and moderator passcodes come from `MC_PASSCODE` and `MODERATOR_PASSCODE`.
 - **Views:** `src/views/panel.ts` renders server-side HTML for attendee, MC, moderator, and audience-screen views.
 - **Visual system:** Panel views use black-and-white UI tokens, the bundled Finlandica Headline font, and compact labels instead of explanatory helper text.
-- **Client behavior:** Forms post to Worker routes and redirect back to the relevant view. Attendee, MC, moderator, and word-screen views also load the typed `/panel-live.js` module, which polls HTML fragments and replaces the relevant list so newly submitted, approved, or voted content appears without a manual refresh.
+- **Client behavior:** Regular attendee interaction stays rooted at `/`: asking questions, submitting words, and voting all post back to `/` and redirect back to `/`. MC and moderator forms post to their role-specific routes. Attendee, MC, moderator, and word-screen views also load the typed `/panel-live.js` module, which polls HTML fragments and replaces the relevant list so newly submitted, approved, or voted content appears without a manual refresh.
 - **Mode model:** The shared room defaults to QA mode. Moderator mode actions must use authenticated POST requests to `/moderator/mode` with `qa` or `wordcloud`; missing or invalid mode values fall back to QA.
 - **Persistence:** Panel state is coordinated through a SQLite-backed Cloudflare Durable Object room so attendees, MC, moderator, and screen views share one authoritative state across Worker isolates. Ended word-cloud data remains visible to the moderator until reset for lightweight analytics review.
 - **Rate limiting:** Question and word creation are throttled by Cloudflare client IP when `cf-connecting-ip` is present and by a shared local fallback otherwise. Vote submissions are also throttled by that client IP key, and each anonymous attendee cookie can vote once per question or approved word. Failed MC and moderator login attempts are throttled by role and client IP.
@@ -23,6 +23,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 ### Anti-Patterns
 
 - Do not require attendee authentication for asking or voting.
+- Do not add separate regular-attendee action routes for new panel functionality; route those interactions through `/`.
 - Do not put MC or moderator passcodes in source files.
 - Do not add inline browser JavaScript to make the queue feel live.
 - Do not bypass the `PanelRoom` Durable Object for panel state in deployed multiplayer flows.
@@ -35,6 +36,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 
 - [ ] `GET /` renders the attendee question view.
 - [ ] `/` follows the moderator-selected room mode, showing QA in QA mode and word submissions in wordcloud mode.
+- [ ] Regular attendee submissions and votes post to `/` for every attendee-facing mode.
 - [ ] Attendees can add anonymous questions that remain pending until moderator approval.
 - [ ] Attendees can see their own pending questions as under consideration while those questions wait for moderator approval.
 - [ ] Attendees can submit anonymous word-cloud words.
@@ -58,6 +60,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 ### Regression Guardrails
 
 - Anonymous attendee identity must be cookie-based and must not require a login flow.
+- Regular attendee forms must use `/` as their action route; role, screen, asset, API, and live-fragment routes may remain separate.
 - MC and moderator role cookies must be signed with `AUTH_SECRET` and use separate cookie names so both roles can stay signed in in different tabs of the same browser.
 - Role views must remain inaccessible when passcodes or `AUTH_SECRET` are not configured.
 - Repeated failed MC and moderator passcode attempts must be throttled by role and client IP.

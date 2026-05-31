@@ -100,7 +100,7 @@ describe("worker", () => {
 
     const voterCookie = cookieHeaderFromResponse(await handleRequest(new Request("http://example.com/")));
     const voteResponse = await handleRequest(
-      new Request("http://example.com/vote", {
+      new Request("http://example.com/", {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded", cookie: voterCookie },
         body: new URLSearchParams({ questionId }),
@@ -191,14 +191,14 @@ describe("worker", () => {
     );
 
     await handleRequest(
-      new Request("http://example.com/vote", {
+      new Request("http://example.com/", {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded", cookie: attendeeCookie },
         body: new URLSearchParams({ wordId }),
       }),
     );
     await handleRequest(
-      new Request("http://example.com/vote", {
+      new Request("http://example.com/", {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded", cookie: attendeeCookie },
         body: new URLSearchParams({ wordId }),
@@ -343,6 +343,15 @@ describe("worker", () => {
   it("redirects unknown posts and protected actions safely", async () => {
     const unknownPost = await handleRequest(new Request("http://example.com/missing", { method: "POST" }));
     expect(unknownPost.status).toBe(404);
+
+    const legacyVotePost = await handleRequest(
+      new Request("http://example.com/vote", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ questionId: "question-1" }),
+      }),
+    );
+    expect(legacyVotePost.status).toBe(404);
 
     const unconfiguredLogin = await handleRequest(
       new Request("http://example.com/mc/login", {

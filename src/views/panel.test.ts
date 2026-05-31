@@ -63,7 +63,8 @@ describe("panel views", () => {
     expect(html).toContain("Live");
     expect(html).toContain("Voted");
     expect(html).toContain('action="/"');
-    expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).toContain('action="/vote"');
+    expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).toContain('action="/"');
+    expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).not.toContain('action="/vote"');
     expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).not.toContain('action="/moderator/vote"');
     expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain("Readable");
     expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain("font-size:");
@@ -167,7 +168,7 @@ describe("panel views", () => {
     expect(wordHtml).toContain('data-live-src="/live"');
     expect(wordHtml).toContain("Word counted.");
     expect(wordHtml).toContain('action="/"');
-    expect(wordHtml).toContain('action="/vote"');
+    expect(wordHtml).not.toContain('action="/vote"');
     expect(wordHtml).toContain("Readable");
     expect(wordHtml).toContain('aria-label="Vote for Readable, 4 votes"');
     expect(wordHtml).toContain("transform:rotate");

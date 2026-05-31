@@ -281,38 +281,38 @@ async function handlePost(request: Request, env: PanelEnv): Promise<Response> {
 
   if (url.pathname === "/") {
     const formData = await request.formData();
-    const result =
-      getPanelMode() === "wordcloud"
-        ? submitWord({
-            text: getFormValue(formData, "word"),
-            clientId: attendee.id,
-            ipAddress: getClientIp(request),
-          })
-        : proposeQuestion({
-            text: getFormValue(formData, "question"),
-            role: "attendee",
-            clientId: attendee.id,
-            ipAddress: getClientIp(request),
-          });
-    return redirectResponse(withNotice("/", result.message), cookieHeader);
-  }
+    const ipAddress = getClientIp(request);
 
-  if (url.pathname === "/vote") {
-    const formData = await request.formData();
     if (getPanelMode() === "wordcloud") {
-      voteForWord({
-        id: getFormValue(formData, "wordId"),
+      const wordId = getFormValue(formData, "wordId");
+
+      if (wordId) {
+        voteForWord({ id: wordId, clientId: attendee.id, ipAddress });
+        return redirectResponse("/", cookieHeader);
+      }
+
+      const result = submitWord({
+        text: getFormValue(formData, "word"),
         clientId: attendee.id,
-        ipAddress: getClientIp(request),
+        ipAddress,
       });
-    } else {
-      voteForQuestion({
-        id: getFormValue(formData, "questionId"),
-        clientId: attendee.id,
-        ipAddress: getClientIp(request),
-      });
+      return redirectResponse(withNotice("/", result.message), cookieHeader);
     }
-    return redirectResponse("/", cookieHeader);
+
+    const questionId = getFormValue(formData, "questionId");
+
+    if (questionId) {
+      voteForQuestion({ id: questionId, clientId: attendee.id, ipAddress });
+      return redirectResponse("/", cookieHeader);
+    }
+
+    const result = proposeQuestion({
+      text: getFormValue(formData, "question"),
+      role: "attendee",
+      clientId: attendee.id,
+      ipAddress,
+    });
+    return redirectResponse(withNotice("/", result.message), cookieHeader);
   }
 
   if (url.pathname === "/mc/login") {
