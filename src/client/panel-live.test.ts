@@ -46,6 +46,64 @@ describe("panel live updates", () => {
     });
   });
 
+  it("refreshes regions when the durable object event stream emits a state change", async () => {
+    const region = createRegion();
+    const root = {
+      querySelectorAll: vi.fn<ParentNode["querySelectorAll"]>(() => [region] as unknown as NodeListOf<Element>),
+    } as unknown as ParentNode;
+    const listeners = new Map<string, EventListenerOrEventListenerObject>();
+    const EventSource = vi.fn(function TestEventSource(this: EventSource, url: string) {
+      expect(url).toBe("/events");
+      Object.assign(this, {
+        addEventListener: vi.fn((event: string, listener: EventListenerOrEventListenerObject) => {
+          listeners.set(event, listener);
+        }),
+      });
+    });
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(new Response("initial"))
+      .mockResolvedValueOnce(new Response("pushed"));
+    vi.stubGlobal("fetch", fetch);
+    vi.stubGlobal("setInterval", vi.fn<typeof globalThis.setInterval>());
+    vi.stubGlobal("document", { hidden: false });
+    vi.stubGlobal("EventSource", EventSource);
+
+    startLiveUpdates(root);
+    await vi.waitFor(() => {
+      expect(region.innerHTML).toBe("initial");
+    });
+
+    const listener = listeners.get("panel-state");
+    expect(listener).toEqual(expect.any(Function));
+    if (typeof listener === "function") {
+      listener(new Event("panel-state"));
+    }
+
+    await vi.waitFor(() => {
+      expect(region.innerHTML).toBe("pushed");
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps polling when event streams are unavailable", async () => {
+    const root = {
+      querySelectorAll: vi.fn<ParentNode["querySelectorAll"]>(() => [createRegion()] as unknown as NodeListOf<Element>),
+    } as unknown as ParentNode;
+    const setInterval = vi.fn<typeof globalThis.setInterval>();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof globalThis.fetch>(async () => new Response("new")),
+    );
+    vi.stubGlobal("setInterval", setInterval);
+    vi.stubGlobal("document", { hidden: false });
+    vi.stubGlobal("EventSource", undefined);
+
+    startLiveUpdates(root);
+
+    expect(setInterval).toHaveBeenCalledWith(expect.any(Function), 2_000);
+  });
+
   it("skips hidden documents, missing sources, failed responses, and unchanged HTML", async () => {
     const region = createRegion(undefined, "old");
     const fetch = vi.fn<typeof globalThis.fetch>(async () => new Response("new", { status: 500 }));

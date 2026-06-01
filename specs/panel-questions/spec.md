@@ -15,7 +15,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 - **Auth model:** `src/panel/auth.ts` signs separate MC and moderator role cookies with `AUTH_SECRET`; MC and moderator passcodes come from `MC_PASSCODE` and `MODERATOR_PASSCODE`.
 - **Views:** `src/views/panel.ts` renders server-side HTML for attendee, present, MC, moderator, and audience-screen views.
 - **Visual system:** Panel views use black-and-white UI tokens, the bundled Finlandica Headline font, and compact labels instead of explanatory helper text.
-- **Client behavior:** Regular attendee interaction stays rooted at `/`: asking questions, submitting words, and voting all post back to `/` and redirect back to `/`. The `/present` view mirrors the active attendee mode without write controls. MC and moderator forms post to their role-specific routes. Attendee, present, MC, moderator, and word-screen views also load the typed `/panel-live.js` module, which polls HTML fragments and replaces the relevant list so newly submitted, approved, or voted content appears without a manual refresh.
+- **Client behavior:** Regular attendee interaction stays rooted at `/`: asking questions, submitting words, and voting all post back to `/` and redirect back to `/`. The `/present` view mirrors the active attendee mode without write controls. MC and moderator forms post to their role-specific routes. Attendee, present, MC, moderator, question-screen, and word-screen views also load the typed `/panel-live.js` module, which subscribes to Durable Object server-sent events from `/events` and refreshes HTML fragments immediately after room state changes. The module keeps interval polling as a fallback so already-open pages still update if the event stream is unavailable.
 - **Mode model:** The shared room defaults to QA mode. Moderator mode actions must use authenticated POST requests to `/moderate/mode` with `qa` or `wordcloud`; missing or invalid mode values fall back to QA.
 - **Persistence:** Panel state is coordinated through a SQLite-backed Cloudflare Durable Object room so attendees, MC, moderator, and screen views share one authoritative state across Worker isolates. Ended word-cloud data remains visible to the moderator until reset for lightweight analytics review.
 - **Rate limiting:** Question and word creation are throttled by Cloudflare client IP when `cf-connecting-ip` is present and by a shared local fallback otherwise. Vote submissions are also throttled by that client IP key, and each anonymous attendee cookie can vote once per question or approved word. Failed MC and moderator login attempts are throttled by role and client IP.
@@ -68,6 +68,7 @@ Options for stronger controls:
 - [ ] MC and moderator queues show new submissions and vote counts without a manual browser refresh.
 - [ ] The MC queue keeps polling while focus is inside its action area so newly approved questions still appear for the MC.
 - [ ] `GET /screen` shows only the currently active question selected by the MC.
+- [ ] Already-open question screens update without a manual browser refresh when the MC selects or clears the active question.
 - [ ] `GET /words/screen` shows only approved word-cloud entries while the word cloud is open.
 - [ ] Approved word-cloud entries appear on already-open attendee root and word-screen pages without a manual browser refresh.
 - [ ] Deployed panel state is coordinated through the `PANEL_ROOM` Durable Object binding.
@@ -93,6 +94,7 @@ Options for stronger controls:
 - Approved questions must appear on already-open attendee question pages without a manual browser refresh.
 - Approved questions and words must appear on already-open present pages without a manual browser refresh.
 - MC and moderator queues must update when other attendees submit, vote, or when another operator changes moderation state.
+- The Durable Object room must emit server-sent events after state-changing POST requests, and clients must keep polling as a fallback.
 - Focus on an MC queue action must not prevent the MC queue from receiving live updates.
 - Pending word-cloud entries may appear only to submitting attendees and must not appear to other attendees or the word screen; hidden word-cloud entries must not appear in the attendee root word-cloud view or word screen.
 - Approved word-cloud entries must appear on already-open attendee root and word-screen pages without a manual browser refresh.

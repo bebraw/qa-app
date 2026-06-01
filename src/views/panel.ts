@@ -252,19 +252,29 @@ export function renderWordScreenContent(words: PublicWord[]): string {
 }
 
 export function renderScreenPage(question: PublicQuestion | undefined): string {
+  return pageShell({
+    title: `Screen - ${appName}`,
+    bodyClass: "min-h-screen bg-black text-white",
+    scriptPath: "/panel-live.js",
+    body: `
+      <main class="flex min-h-screen items-center justify-center px-8 py-10">
+        ${renderScreenFragment(question)}
+      </main>`,
+  });
+}
+
+export function renderScreenFragment(question: PublicQuestion | undefined): string {
+  return `<section class="flex w-full items-center justify-center" aria-label="Question screen" data-live-region="question-screen" data-live-src="/screen/live">
+    ${renderScreenContent(question)}
+  </section>`;
+}
+
+export function renderScreenContent(question: PublicQuestion | undefined): string {
   const content = question
     ? `<p class="max-w-5xl text-balance text-center text-5xl font-semibold leading-[1.03] text-white sm:text-7xl lg:text-8xl">${escapeHtml(question.text)}</p>`
     : `<p class="text-center text-3xl font-semibold text-white/78 sm:text-5xl">Waiting.</p>`;
 
-  return pageShell({
-    title: `Screen - ${appName}`,
-    refreshSeconds: 5,
-    bodyClass: "min-h-screen bg-black text-white",
-    body: `
-      <main class="flex min-h-screen items-center justify-center px-8 py-10">
-        ${content}
-      </main>`,
-  });
+  return content;
 }
 
 function renderLoginPage(role: "mc" | "moderator", configured: boolean): string {

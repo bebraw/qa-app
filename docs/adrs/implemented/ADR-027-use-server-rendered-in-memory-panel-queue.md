@@ -18,13 +18,14 @@ The app uses:
 
 - plain HTML forms and redirects for state-changing actions
 - `PANEL_ROOM`, a Cloudflare Durable Object binding to the exported `PanelRoom` class
-- a typed external polling module for attendee, present, operator, and word-screen fragments
+- a typed external live-update module for attendee, present, operator, question-screen, and word-screen fragments
+- a Durable Object server-sent event stream at `/events` for room state-change notifications, with interval polling retained as a fallback
 - anonymous attendee cookies for one-vote-per-question and one-vote-per-word behavior
 - IP-based throttling for question, word, and vote submissions
 - separate signed MC and moderator role cookies
 - `AUTH_SECRET`, `MC_PASSCODE`, and `MODERATOR_PASSCODE` environment variables for privileged access
 
-Question and word-cloud state is coordinated through the default `PanelRoom` Durable Object. The room defaults to QA mode, and missing or invalid mode values fall back to QA. All regular-attendee actions post to `/`, with the active room mode and submitted form fields deciding whether the action asks, submits, or votes. The `/present` view mirrors the active attendee mode as a read-only presentation surface. Attendee-submitted questions and words remain pending until a moderator approves them, and submitters can see their own pending submissions as under consideration. Submitters cannot vote for questions or words they submitted. Approved questions become visible on already-open attendee, present, and MC pages through lightweight polling fragments. Moderator queues use the same polling module to show pending submissions, vote counts, word-cloud changes, and moderation state from other requests. Duplicate submitted words increment the existing pending or approved entry, and approved words become visible on already-open attendee root, present, and word-screen pages through the same polling module. Moderators can approve, hide, merge, and end word clouds. Ending a word cloud stops attendee and screen visibility but keeps the word data visible to the moderator until reset. A moderator reset clears the room state explicitly.
+Question and word-cloud state is coordinated through the default `PanelRoom` Durable Object. The room defaults to QA mode, and missing or invalid mode values fall back to QA. All regular-attendee actions post to `/`, with the active room mode and submitted form fields deciding whether the action asks, submits, or votes. The `/present` view mirrors the active attendee mode as a read-only presentation surface. Attendee-submitted questions and words remain pending until a moderator approves them, and submitters can see their own pending submissions as under consideration. Submitters cannot vote for questions or words they submitted. State-changing POST requests persist the updated room state, then broadcast a server-sent `panel-state` event to already-open views. The client module responds by refreshing the same server-rendered HTML fragments used by the polling fallback. Approved questions become visible on already-open attendee, present, and MC pages through these live fragments. Moderator queues use the same module to show pending submissions, vote counts, word-cloud changes, and moderation state from other requests. Duplicate submitted words increment the existing pending or approved entry, and approved words become visible on already-open attendee root, present, and word-screen pages through the same module. Question screens use a live fragment instead of HTML meta refresh. Moderators can approve, hide, merge, and end word clouds. Ending a word cloud stops attendee and screen visibility but keeps the word data visible to the moderator until reset. A moderator reset clears the room state explicitly.
 
 The MC and moderator cookies use different names while retaining signed role payloads. This lets one browser keep `/mc` and `/moderate` tabs authenticated at the same time without allowing one role cookie to satisfy the other role boundary.
 
@@ -50,12 +51,12 @@ The project is no longer only a starter Worker. It now hosts a real conference w
 - The first implementation uses one hard-coded default room instead of a multi-room event model.
 - Anonymous attendee identity is resettable by users and is not a strong one-person-one-vote guarantee.
 - IP throttling is room-local and best-effort; it is not a full abuse-control system.
-- Realtime behavior is polling-based, not push-based, and only reflects the Worker state reached by the polling request.
-- The question screen still refreshes by HTML refresh rather than live push updates.
+- Server-sent events keep one open connection per browser tab that has live regions.
+- If the event stream is unavailable, updates fall back to the polling interval rather than being purely push-based.
 
 **Neutral:**
 
-- SSE can replace polling later without changing the Durable Object room as the source of truth.
+- The client still refreshes server-rendered fragments instead of receiving serialized state over the event stream.
 
 ## Alternatives Considered
 
@@ -71,9 +72,9 @@ This was rejected because deployed multiplayer behavior can split across Worker 
 
 This was rejected because the panel needs coordination semantics around votes, moderation, active question selection, and rate-limit buckets. A Durable Object is a closer match for a single live room.
 
-### Use SSE immediately
+### Keep polling only
 
-This was deferred because SSE improves delivery latency but does not by itself solve shared state across isolates. The Durable Object room is the required source of truth; SSE can be layered on later.
+This was accepted for the first implementation because it was simpler, but it made updates feel delayed by the polling interval and left the question screen on a slower HTML refresh. The Durable Object room remains the source of truth, and SSE is now layered on top as the primary invalidation mechanism.
 
 ### Build a client-side single-page app
 

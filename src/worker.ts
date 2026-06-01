@@ -56,6 +56,7 @@ import {
   renderModeratorPage,
   renderPresentModeContent,
   renderPresentPage,
+  renderScreenContent,
   renderScreenPage,
   renderWordScreenContent,
   renderWordScreenPage,
@@ -82,11 +83,18 @@ interface DurableObjectState {
   readonly storage: DurableObjectStorage;
 }
 
+interface LiveClient {
+  readonly writer: WritableStreamDefaultWriter<Uint8Array>;
+}
+
 export interface PanelWorkerEnv extends PanelEnv {
   readonly PANEL_ROOM?: PanelDurableObjectNamespace;
 }
 
 const panelStateStorageKey = "panel-state";
+const panelEventsPath = "/events";
+const panelStateEvent = "panel-state";
+const encoder = new TextEncoder();
 
 export default {
   async fetch(request: Request, env?: PanelWorkerEnv): Promise<Response> {
@@ -96,6 +104,7 @@ export default {
 
 export class PanelRoom {
   private hydrated = false;
+  private readonly liveClients = new Set<LiveClient>();
 
   constructor(
     private readonly state: DurableObjectState,
@@ -104,13 +113,67 @@ export class PanelRoom {
 
   async fetch(request: Request): Promise<Response> {
     await this.hydrate();
+    const url = new URL(request.url);
+
+    if (url.pathname === panelEventsPath) {
+      return await this.createEventsResponse(request);
+    }
+
     const response = await handleRequest(request, this.env, false);
 
     if (changesPanelState(request)) {
       await this.state.storage.put(panelStateStorageKey, serializePanelState());
+      this.broadcastPanelStateChanged();
     }
 
     return response;
+  }
+
+  private createEventsResponse(request: Request): Response {
+    const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+    const client: LiveClient = { writer: writable.getWriter() };
+    this.liveClients.add(client);
+
+    request.signal.addEventListener(
+      "abort",
+      () => {
+        void this.closeLiveClient(client);
+      },
+      { once: true },
+    );
+
+    void this.writeLiveClient(client, ": connected\n\n");
+
+    return new Response(readable, {
+      headers: {
+        "cache-control": "no-store",
+        "content-type": "text/event-stream; charset=utf-8",
+      },
+    });
+  }
+
+  private broadcastPanelStateChanged(): void {
+    for (const client of this.liveClients) {
+      void this.writeLiveClient(client, `event: ${panelStateEvent}\ndata: changed\n\n`);
+    }
+  }
+
+  private async writeLiveClient(client: LiveClient, message: string): Promise<void> {
+    try {
+      await client.writer.write(encoder.encode(message));
+    } catch {
+      this.liveClients.delete(client);
+    }
+  }
+
+  private async closeLiveClient(client: LiveClient): Promise<void> {
+    this.liveClients.delete(client);
+
+    try {
+      await client.writer.close();
+    } catch {
+      // The browser may already have closed the stream.
+    }
   }
 
   private async hydrate(): Promise<void> {
@@ -140,6 +203,10 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
 
   if (routeToDurableObject && shouldUsePanelRoom(url.pathname, request.method) && env.PANEL_ROOM) {
     return await fetchPanelRoom(request, env.PANEL_ROOM);
+  }
+
+  if (url.pathname === panelEventsPath) {
+    return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
   }
 
   if (request.method === "POST") {
@@ -279,6 +346,10 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
 
   if (url.pathname === "/screen") {
     return htmlResponse(renderScreenPage(getActivePublicQuestion()));
+  }
+
+  if (url.pathname === "/screen/live") {
+    return htmlResponse(renderScreenContent(getActivePublicQuestion()));
   }
 
   if (url.pathname === "/words/screen") {
@@ -576,6 +647,7 @@ function shouldUsePanelRoom(pathname: string, method: string): boolean {
 
   return (
     pathname === "/" ||
+    pathname === panelEventsPath ||
     pathname === "/live" ||
     pathname === "/questions/live" ||
     pathname === "/present" ||
@@ -587,6 +659,7 @@ function shouldUsePanelRoom(pathname: string, method: string): boolean {
     pathname === "/moderate/questions/live" ||
     pathname === "/moderate/words/live" ||
     pathname === "/screen" ||
+    pathname === "/screen/live" ||
     pathname === "/words/screen" ||
     pathname === "/words/screen/live"
   );

@@ -388,6 +388,40 @@ describe("worker", () => {
     expect(moderatorHtml).toContain("Under consideration");
   });
 
+  it("streams panel state change events from the durable object room", async () => {
+    const room = createTestPanelRoom(new Map<string, unknown>());
+    const eventResponse = await room.fetch(new Request("http://example.com/events"));
+    const reader = eventResponse.body?.getReader();
+
+    expect(eventResponse.status).toBe(200);
+    expect(eventResponse.headers.get("content-type")).toBe("text/event-stream; charset=utf-8");
+    expect(eventResponse.headers.get("cache-control")).toBe("no-store");
+    expect(reader).toBeDefined();
+
+    const decoder = new TextDecoder();
+    const connected = await reader?.read();
+    expect(decoder.decode(connected?.value)).toContain(": connected");
+
+    await room.fetch(
+      new Request("http://example.com/", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", "cf-connecting-ip": "198.51.100.32" },
+        body: new URLSearchParams({ question: "Will this reach already-open views quickly?" }),
+      }),
+    );
+
+    const changed = await reader?.read();
+    expect(decoder.decode(changed?.value)).toContain("event: panel-state");
+    await reader?.cancel();
+  });
+
+  it("returns no-content for event streams without a durable object binding", async () => {
+    const response = await handleRequest(new Request("http://example.com/events"));
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
   it("redirects unknown posts and protected actions safely", async () => {
     const unknownPost = await handleRequest(new Request("http://example.com/missing", { method: "POST" }));
     expect(unknownPost.status).toBe(404);
@@ -589,6 +623,9 @@ describe("worker", () => {
     const selectedResponse = await handleRequest(new Request("http://example.com/mc", { headers: { cookie: mcCookie } }), env);
     await expect(selectedResponse.text()).resolves.toContain("Live");
     await expect(handleRequest(new Request("http://example.com/screen")).then((response) => response.text())).resolves.toContain(
+      "Which standards are ready for production use?",
+    );
+    await expect(handleRequest(new Request("http://example.com/screen/live")).then((response) => response.text())).resolves.toContain(
       "Which standards are ready for production use?",
     );
 

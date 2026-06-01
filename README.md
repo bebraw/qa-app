@@ -40,13 +40,15 @@ Routes:
 
 - `GET /`: attendee view for the active moderator-selected mode: QA questions or word-cloud submissions and votes
 - `GET /present`: read-only attendee-style view for presenting the active QA queue or word cloud, with automatic updates
-- `GET /mc`: passcode-protected MC view for choosing the live question and marking it done, with automatic queue updates
+- `GET /mc`: passcode-protected MC view for choosing the live question and marking it done, with automatic updates
 - `GET /moderate`: passcode-protected moderator view for approving, adding, voting, hiding, merging, ending, resetting, and switching panel mode, with QA as the default mode
-- `GET /screen`: beamer view showing the active question
+- `GET /screen`: beamer view showing the active question, with automatic updates
 - `GET /words/screen`: beamer view showing approved word-cloud entries, with automatic updates
 - `GET /api/health`: JSON health response for smoke tests and tooling
 
 Panel state is coordinated through a SQLite-backed Cloudflare Durable Object room. The moderator reset clears it explicitly. Ended word-cloud data stays visible to the moderator until reset.
+
+Already-open panel pages subscribe to Durable Object server-sent events and refresh their server-rendered fragments after state changes. The browser module keeps interval polling as a fallback if the event stream is unavailable.
 
 The moderator controls whether `/` is in QA or wordcloud mode. In QA mode, `/moderate` shows questions to moderate. In wordcloud mode, `/moderate` shows word-cloud controls instead.
 

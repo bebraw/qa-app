@@ -1,4 +1,6 @@
 const pollIntervalMs = 2_000;
+const eventsPath = "/events";
+const panelStateEvent = "panel-state";
 
 interface LiveRegion extends HTMLElement {
   readonly dataset: DOMStringMap & {
@@ -9,6 +11,8 @@ interface LiveRegion extends HTMLElement {
 
 export function startLiveUpdates(root: ParentNode = document): void {
   const regions = [...root.querySelectorAll<LiveRegion>("[data-live-region][data-live-src]")];
+
+  subscribeToPanelEvents(regions);
 
   for (const region of regions) {
     void refreshRegion(region);
@@ -43,6 +47,23 @@ export async function refreshRegion(region: LiveRegion): Promise<void> {
 
 if (typeof document !== "undefined") {
   startLiveUpdates();
+}
+
+function subscribeToPanelEvents(regions: readonly LiveRegion[]): void {
+  if (regions.length === 0 || typeof EventSource === "undefined") {
+    return;
+  }
+
+  const events = new EventSource(eventsPath);
+  events.addEventListener(panelStateEvent, () => {
+    refreshRegions(regions);
+  });
+}
+
+function refreshRegions(regions: readonly LiveRegion[]): void {
+  for (const region of regions) {
+    void refreshRegion(region);
+  }
 }
 
 function focusedWithin(region: LiveRegion): boolean {

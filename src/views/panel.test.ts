@@ -208,6 +208,8 @@ describe("panel views", () => {
   it("renders the screen waiting state and active question state", () => {
     expect(renderScreenPage(undefined)).toContain("Waiting.");
     expect(renderScreenPage(activeQuestion)).toContain("How do we keep frontend systems understandable?");
-    expect(renderScreenPage(activeQuestion)).toContain('http-equiv="refresh"');
+    expect(renderScreenPage(activeQuestion)).toContain('<script src="/panel-live.js" type="module"></script>');
+    expect(renderScreenPage(activeQuestion)).toContain('data-live-src="/screen/live"');
+    expect(renderScreenPage(activeQuestion)).not.toContain('http-equiv="refresh"');
   });
 });
