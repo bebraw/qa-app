@@ -102,7 +102,7 @@ function requestedRole(pathname: string): Exclude<PanelRole, "attendee"> | undef
     return "mc";
   }
 
-  if (pathname === "/moderator" || pathname.startsWith("/moderator/")) {
+  if (pathname === "/moderate" || pathname.startsWith("/moderate/")) {
     return "moderator";
   }
 

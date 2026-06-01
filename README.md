@@ -39,15 +39,16 @@ Set these values in `.dev.vars` locally and as Worker secrets in production:
 Routes:
 
 - `GET /`: attendee view for the active moderator-selected mode: QA questions or word-cloud submissions and votes
+- `GET /present`: read-only attendee-style view for presenting the active QA queue or word cloud, with automatic updates
 - `GET /mc`: passcode-protected MC view for choosing the live question and marking it done, with automatic queue updates
-- `GET /moderator`: passcode-protected moderator view for approving, adding, voting, hiding, merging, ending, resetting, and switching panel mode, with QA as the default mode
+- `GET /moderate`: passcode-protected moderator view for approving, adding, voting, hiding, merging, ending, resetting, and switching panel mode, with QA as the default mode
 - `GET /screen`: beamer view showing the active question
 - `GET /words/screen`: beamer view showing approved word-cloud entries, with automatic updates
 - `GET /api/health`: JSON health response for smoke tests and tooling
 
 Panel state is coordinated through a SQLite-backed Cloudflare Durable Object room. The moderator reset clears it explicitly. Ended word-cloud data stays visible to the moderator until reset.
 
-The moderator controls whether `/` is in QA or wordcloud mode. In QA mode, `/moderator` shows questions to moderate. In wordcloud mode, `/moderator` shows word-cloud controls instead.
+The moderator controls whether `/` is in QA or wordcloud mode. In QA mode, `/moderate` shows questions to moderate. In wordcloud mode, `/moderate` shows word-cloud controls instead.
 
 Regular attendee interactions stay at `/`: asking questions, submitting words, and voting all post back to `/` regardless of the active panel mode. Attendees see their own pending submissions as under consideration and cannot vote for questions or words they submitted.
 
@@ -111,10 +112,10 @@ Keep the Durable Object binding and migration in the deployed config. Removing o
 
 7. Smoke-test the deployed Worker:
    - Open `/api/health` and confirm it returns `{"ok":true,...}`.
-   - Open `/`, `/mc`, `/moderator`, `/screen`, and `/words/screen`.
+   - Open `/`, `/present`, `/mc`, `/moderate`, `/screen`, and `/words/screen`.
    - Confirm MC and moderator views require the production passcodes.
-   - Submit a question and a word from attendee tabs, approve them in `/moderator`, and confirm already-open attendee/screen pages update without refresh.
-   - Use `/moderator` reset before opening the room to attendees.
+   - Submit a question and a word from attendee tabs, approve them in `/moderate`, and confirm already-open attendee/screen pages update without refresh.
+   - Use `/moderate` reset before opening the room to attendees.
 
 The app keeps questions and word-cloud data in the `PanelRoom` Durable Object. The current config uses one default room for the event. Use moderator reset to clear it between panels.
 

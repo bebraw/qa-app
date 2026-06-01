@@ -54,6 +54,8 @@ import {
   renderModeratorModeContent,
   renderModeratorWordsContent,
   renderModeratorPage,
+  renderPresentModeContent,
+  renderPresentPage,
   renderScreenPage,
   renderWordScreenContent,
   renderWordScreenPage,
@@ -174,6 +176,26 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
     return htmlResponse(renderAudienceQuestionsContent(listAudienceQuestions(attendee.id)));
   }
 
+  if (url.pathname === "/present") {
+    return htmlResponse(
+      renderPresentPage({
+        mode: getPanelMode(),
+        questions: listAudienceQuestions(""),
+        words: listAudienceWords(""),
+      }),
+    );
+  }
+
+  if (url.pathname === "/present/live") {
+    return htmlResponse(
+      renderPresentModeContent({
+        mode: getPanelMode(),
+        questions: listAudienceQuestions(""),
+        words: listAudienceWords(""),
+      }),
+    );
+  }
+
   if (url.pathname === "/mc") {
     const auth = await readAuthState(request, env);
     return htmlResponse(
@@ -200,7 +222,7 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
     return htmlResponse(renderMcQuestionsContent(listMcQuestions(attendee.id)));
   }
 
-  if (url.pathname === "/moderator") {
+  if (url.pathname === "/moderate") {
     const auth = await readAuthState(request, env);
 
     return htmlResponse(
@@ -217,7 +239,7 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
     );
   }
 
-  if (url.pathname === "/moderator/live") {
+  if (url.pathname === "/moderate/live") {
     const auth = await readAuthState(request, env);
 
     if (auth.role !== "moderator") {
@@ -235,7 +257,7 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
     );
   }
 
-  if (url.pathname === "/moderator/questions/live") {
+  if (url.pathname === "/moderate/questions/live") {
     const auth = await readAuthState(request, env);
 
     if (auth.role !== "moderator") {
@@ -245,7 +267,7 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
     return htmlResponse(renderModeratorQuestionsContent(listModeratorQuestions(attendee.id)));
   }
 
-  if (url.pathname === "/moderator/words/live") {
+  if (url.pathname === "/moderate/words/live") {
     const auth = await readAuthState(request, env);
 
     if (auth.role !== "moderator") {
@@ -319,8 +341,8 @@ async function handlePost(request: Request, env: PanelEnv): Promise<Response> {
     return await login(request, env, "mc", "/mc", cookieHeader);
   }
 
-  if (url.pathname === "/moderator/login") {
-    return await login(request, env, "moderator", "/moderator", cookieHeader);
+  if (url.pathname === "/moderate/login") {
+    return await login(request, env, "moderator", "/moderate", cookieHeader);
   }
 
   if (url.pathname === "/logout") {
@@ -335,7 +357,7 @@ async function handlePost(request: Request, env: PanelEnv): Promise<Response> {
     return await handleMcAction(request, env, cookieHeader);
   }
 
-  if (url.pathname === "/moderator" || url.pathname.startsWith("/moderator/")) {
+  if (url.pathname === "/moderate" || url.pathname.startsWith("/moderate/")) {
     return await handleModeratorAction(request, env, attendee.id, cookieHeader);
   }
 
@@ -402,85 +424,85 @@ async function handleModeratorAction(request: Request, env: PanelEnv, attendeeId
   const auth = await readAuthState(request, env);
 
   if (auth.role !== "moderator") {
-    return redirectResponse(withNotice("/moderator", "Sign in first."), headers);
+    return redirectResponse(withNotice("/moderate", "Sign in first."), headers);
   }
 
   const url = new URL(request.url);
 
-  if (url.pathname === "/moderator") {
+  if (url.pathname === "/moderate") {
     const result = proposeQuestion({
       text: getFormValue(await request.formData(), "question"),
       role: "moderator",
       clientId: attendeeId,
       ipAddress: getClientIp(request),
     });
-    return redirectResponse(withNotice("/moderator", result.message), headers);
+    return redirectResponse(withNotice("/moderate", result.message), headers);
   }
 
-  if (url.pathname === "/moderator/vote") {
+  if (url.pathname === "/moderate/vote") {
     const formData = await request.formData();
     voteForQuestion({
       id: getFormValue(formData, "questionId"),
       clientId: attendeeId,
       ipAddress: getClientIp(request),
     });
-    return redirectResponse("/moderator", headers);
+    return redirectResponse("/moderate", headers);
   }
 
-  if (url.pathname === "/moderator/hide") {
+  if (url.pathname === "/moderate/hide") {
     const formData = await request.formData();
     hideQuestion(getFormValue(formData, "questionId"));
-    return redirectResponse("/moderator", headers);
+    return redirectResponse("/moderate", headers);
   }
 
-  if (url.pathname === "/moderator/approve") {
+  if (url.pathname === "/moderate/approve") {
     const formData = await request.formData();
     approveQuestion(getFormValue(formData, "questionId"));
-    return redirectResponse("/moderator", headers);
+    return redirectResponse("/moderate", headers);
   }
 
-  if (url.pathname === "/moderator/mode") {
+  if (url.pathname === "/moderate/mode") {
     const formData = await request.formData();
     setPanelMode(readPanelMode(getFormValue(formData, "mode")));
-    return redirectResponse("/moderator", headers);
+    return redirectResponse("/moderate", headers);
   }
 
-  if (url.pathname === "/moderator/words/approve") {
+  if (url.pathname === "/moderate/words/approve") {
     const formData = await request.formData();
     approveWord(getFormValue(formData, "wordId"));
-    return redirectResponse("/moderator", headers);
+    return redirectResponse("/moderate", headers);
   }
 
-  if (url.pathname === "/moderator/words/vote") {
+  if (url.pathname === "/moderate/words/vote") {
     const formData = await request.formData();
     voteForWord({
       id: getFormValue(formData, "wordId"),
       clientId: attendeeId,
       ipAddress: getClientIp(request),
     });
-    return redirectResponse("/moderator", headers);
+    return redirectResponse("/moderate", headers);
   }
 
-  if (url.pathname === "/moderator/words/hide") {
+  if (url.pathname === "/moderate/words/hide") {
     const formData = await request.formData();
     hideWord(getFormValue(formData, "wordId"));
-    return redirectResponse("/moderator", headers);
+    return redirectResponse("/moderate", headers);
   }
 
-  if (url.pathname === "/moderator/words/merge") {
+  if (url.pathname === "/moderate/words/merge") {
     const formData = await request.formData();
     mergeWord(getFormValue(formData, "wordId"), getFormValue(formData, "target"));
-    return redirectResponse("/moderator", headers);
+    return redirectResponse("/moderate", headers);
   }
 
-  if (url.pathname === "/moderator/words/end") {
+  if (url.pathname === "/moderate/words/end") {
     endWordCloud();
-    return redirectResponse(withNotice("/moderator", "Word cloud ended."), headers);
+    return redirectResponse(withNotice("/moderate", "Word cloud ended."), headers);
   }
 
-  if (url.pathname === "/moderator/reset") {
+  if (url.pathname === "/moderate/reset") {
     resetPanel();
-    return redirectResponse(withNotice("/moderator", "Panel reset."), headers);
+    return redirectResponse(withNotice("/moderate", "Panel reset."), headers);
   }
 
   return htmlResponse(renderNotFoundPage(url.pathname), 404);
@@ -556,12 +578,14 @@ function shouldUsePanelRoom(pathname: string, method: string): boolean {
     pathname === "/" ||
     pathname === "/live" ||
     pathname === "/questions/live" ||
+    pathname === "/present" ||
+    pathname === "/present/live" ||
     pathname === "/mc" ||
     pathname === "/mc/live" ||
-    pathname === "/moderator" ||
-    pathname === "/moderator/live" ||
-    pathname === "/moderator/questions/live" ||
-    pathname === "/moderator/words/live" ||
+    pathname === "/moderate" ||
+    pathname === "/moderate/live" ||
+    pathname === "/moderate/questions/live" ||
+    pathname === "/moderate/words/live" ||
     pathname === "/screen" ||
     pathname === "/words/screen" ||
     pathname === "/words/screen/live"

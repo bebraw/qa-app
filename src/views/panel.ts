@@ -28,6 +28,18 @@ export function renderAudiencePage(view: AudienceViewModel): string {
   });
 }
 
+export function renderPresentPage(view: AudienceViewModel): string {
+  return pageShell({
+    title: `Present - ${appName}`,
+    bodyClass: "bg-app-canvas text-app-text",
+    scriptPath: "/panel-live.js",
+    body: `
+      <main class="mx-auto flex min-h-screen w-[min(42rem,calc(100vw-1.5rem))] flex-col gap-5 px-1 py-6 sm:py-9">
+        ${renderPresentModeFragment(view)}
+      </main>`,
+  });
+}
+
 export function renderAudienceModeFragment(view: AudienceViewModel): string {
   return `<section class="contents" data-live-region="audience-mode" data-live-src="/live">
     ${renderAudienceModeContent(view)}
@@ -52,6 +64,26 @@ export function renderAudienceModeContent(view: AudienceViewModel): string {
     </section>`;
 }
 
+export function renderPresentModeFragment(view: AudienceViewModel): string {
+  return `<section class="contents" data-live-region="present-mode" data-live-src="/present/live">
+    ${renderPresentModeContent(view)}
+  </section>`;
+}
+
+export function renderPresentModeContent(view: AudienceViewModel): string {
+  if (view.mode === "wordcloud") {
+    return `${header("Words")}
+      <section aria-label="Approved words">
+        ${renderPresentWordsContent(view.words)}
+      </section>`;
+  }
+
+  return `${header("Questions")}
+    <section class="space-y-3" aria-label="Available questions">
+      ${renderPresentQuestionsContent(view.questions)}
+    </section>`;
+}
+
 export function renderAudienceQuestionsFragment(questions: PublicQuestion[]): string {
   return `<section class="space-y-3" aria-label="Available questions" data-live-region="questions" data-live-src="/questions/live">
     ${renderAudienceQuestionsContent(questions)}
@@ -64,8 +96,16 @@ export function renderAudienceQuestionsContent(questions: PublicQuestion[]): str
     : questions.map((question) => questionCard(question, "attendee")).join("");
 }
 
+export function renderPresentQuestionsContent(questions: PublicQuestion[]): string {
+  return questions.length === 0 ? emptyState("No questions yet.") : questions.map((question) => questionCard(question, "present")).join("");
+}
+
 export function renderAudienceWordsContent(words: PublicWord[]): string {
   return words.length === 0 ? emptyState("No words yet.") : wordCloud(words, "attendee");
+}
+
+export function renderPresentWordsContent(words: PublicWord[]): string {
+  return words.length === 0 ? emptyState("No words yet.") : wordCloud(words, "present");
 }
 
 export function renderMcPage(view: RoleViewModel): string {
@@ -115,13 +155,13 @@ export function renderModeratorPage(view: RoleViewModel): string {
 }
 
 export function renderModeratorModeFragment(view: RoleViewModel): string {
-  return `<section class="contents" data-live-region="moderator-mode" data-live-src="/moderator/live">
+  return `<section class="contents" data-live-region="moderator-mode" data-live-src="/moderate/live">
     ${renderModeratorModeContent(view)}
   </section>`;
 }
 
 export function renderModeratorModeContent(view: RoleViewModel): string {
-  const resetForm = `<form method="post" action="/moderator/reset">
+  const resetForm = `<form method="post" action="/moderate/reset">
     <button class="h-12 w-full rounded-lg border border-app-line bg-white px-4 text-sm font-semibold uppercase tracking-[0.14em] text-app-text transition hover:bg-app-accent-ghost focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-text/30" type="submit">Reset</button>
   </form>`;
 
@@ -132,7 +172,7 @@ export function renderModeratorModeContent(view: RoleViewModel): string {
   }
 
   return `${modeSwitch(view.mode)}
-    ${questionForm("/moderator", "Add moderator question", "Question", "Add")}
+    ${questionForm("/moderate", "Add moderator question", "Question", "Add")}
     ${resetForm}
     <section class="space-y-3" aria-label="Questions for moderator">
       ${renderModeratorQuestionsContent(view.questions)}
@@ -140,7 +180,7 @@ export function renderModeratorModeContent(view: RoleViewModel): string {
 }
 
 export function renderModeratorQuestionsFragment(questions: PublicQuestion[]): string {
-  return `<section class="space-y-3" aria-label="Questions for moderator" data-live-region="moderator-questions" data-live-src="/moderator/questions/live">
+  return `<section class="space-y-3" aria-label="Questions for moderator" data-live-region="moderator-questions" data-live-src="/moderate/questions/live">
     ${renderModeratorQuestionsContent(questions)}
   </section>`;
 }
@@ -152,7 +192,7 @@ export function renderModeratorQuestionsContent(questions: PublicQuestion[]): st
 }
 
 export function renderModeratorWordsFragment(words: PublicWord[], ended: boolean): string {
-  return `<section class="space-y-3" aria-label="Word cloud" data-live-region="moderator-words" data-live-src="/moderator/words/live">
+  return `<section class="space-y-3" aria-label="Word cloud" data-live-region="moderator-words" data-live-src="/moderate/words/live">
     ${renderModeratorWordsContent(words, ended)}
   </section>`;
 }
@@ -163,7 +203,7 @@ export function renderModeratorWordsContent(words: PublicWord[], ended: boolean)
       <h2 class="text-3xl font-semibold leading-none">Words</h2>
       ${ended ? `<span class="pb-1 text-sm font-semibold uppercase tracking-[0.14em] text-app-text-soft">Ended</span>` : ""}
     </div>
-    <form method="post" action="/moderator/words/end">
+    <form method="post" action="/moderate/words/end">
       <button class="h-10 rounded-lg border border-app-line bg-white px-4 text-sm font-semibold text-app-text-soft transition hover:text-app-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35" type="submit" ${ended ? "disabled" : ""}>End</button>
     </form>
   </div>
@@ -179,7 +219,7 @@ function modeSwitch(mode: PanelMode): string {
 
 function modeButton(value: PanelMode, label: string, current: PanelMode): string {
   const active = value === current;
-  return `<form method="post" action="/moderator/mode">
+  return `<form method="post" action="/moderate/mode">
     <input type="hidden" name="mode" value="${value}">
     <button class="h-11 w-full rounded-md border px-4 text-sm font-semibold uppercase tracking-[0.14em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35 ${
       active ? "border-app-text bg-app-text text-white" : "border-app-line bg-white text-app-text-soft hover:text-app-text"
@@ -229,6 +269,7 @@ export function renderScreenPage(question: PublicQuestion | undefined): string {
 
 function renderLoginPage(role: "mc" | "moderator", configured: boolean): string {
   const label = role === "mc" ? "MC" : "Moderator";
+  const actionPath = role === "mc" ? "/mc/login" : "/moderate/login";
   const setupMessage = configured
     ? ""
     : `<p class="rounded-lg border border-app-line px-4 py-3 text-sm leading-6 text-app-text">Set AUTH_SECRET and ${role === "mc" ? "MC_PASSCODE" : "MODERATOR_PASSCODE"}.</p>`;
@@ -240,7 +281,7 @@ function renderLoginPage(role: "mc" | "moderator", configured: boolean): string 
       <main class="mx-auto flex min-h-screen w-[min(28rem,calc(100vw-1.5rem))] flex-col justify-center gap-6 py-6">
         ${header(label)}
         ${setupMessage}
-        <form class="space-y-3" method="post" action="/${role}/login">
+        <form class="space-y-3" method="post" action="${actionPath}">
           <input class="h-14 w-full rounded-lg border border-app-line bg-white px-4 text-lg shadow-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35" name="passcode" type="password" autocomplete="current-password" required>
           <button class="h-14 w-full rounded-lg bg-app-text px-4 text-sm font-semibold uppercase tracking-[0.16em] text-white transition hover:bg-app-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/40" type="submit">Enter</button>
         </form>
@@ -309,7 +350,7 @@ function wordForm(action: string, label: string, placeholder: string, button: st
   </form>`;
 }
 
-function questionCard(question: PublicQuestion, role: "attendee" | "mc" | "moderator"): string {
+function questionCard(question: PublicQuestion, role: "attendee" | "present" | "mc" | "moderator"): string {
   const activeClass = question.status === "active" ? "border-app-accent bg-app-accent-ghost" : "border-app-line bg-white";
   const pendingLabel =
     question.status === "pending"
@@ -341,7 +382,7 @@ function questionCard(question: PublicQuestion, role: "attendee" | "mc" | "moder
 function wordPill(word: PublicWord, role: "attendee" | "moderator"): string {
   const voteButton = word.votedByCurrentUser
     ? `<button class="h-10 rounded-full border border-app-line bg-app-surface px-4 text-sm font-semibold text-app-text-soft" type="submit" disabled>${escapeHtml(word.text)} ${word.count}</button>`
-    : `<form method="post" action="${role === "moderator" ? "/moderator/words/vote" : "/"}">
+    : `<form method="post" action="${role === "moderator" ? "/moderate/words/vote" : "/"}">
         <input type="hidden" name="wordId" value="${escapeHtml(word.id)}">
         <button class="h-10 rounded-full border border-app-line bg-white px-4 text-sm font-semibold text-app-text transition hover:bg-app-accent-ghost focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35" type="submit">${escapeHtml(word.text)} ${word.count}</button>
       </form>`;
@@ -349,7 +390,7 @@ function wordPill(word: PublicWord, role: "attendee" | "moderator"): string {
   return voteButton;
 }
 
-function wordCloud(words: PublicWord[], variant: "attendee" | "screen"): string {
+function wordCloud(words: PublicWord[], variant: "attendee" | "present" | "screen"): string {
   const maximumCount = Math.max(...words.map((word) => word.count));
   const containerClass =
     variant === "screen"
@@ -359,7 +400,7 @@ function wordCloud(words: PublicWord[], variant: "attendee" | "screen"): string 
   return `<div class="${containerClass}">${words.map((word, index) => cloudWord(word, variant, maximumCount, index)).join("")}</div>`;
 }
 
-function cloudWord(word: PublicWord, variant: "attendee" | "screen", maximumCount: number, index: number): string {
+function cloudWord(word: PublicWord, variant: "attendee" | "present" | "screen", maximumCount: number, index: number): string {
   const size = cloudWordSize(word.count, maximumCount, variant);
   const weight = Math.round(520 + Math.min(1, word.count / maximumCount) * 360);
   const rotation = variant === "screen" ? cloudRotation(word.id, index) : cloudRotation(word.id, index) * 0.7;
@@ -378,6 +419,10 @@ function cloudWord(word: PublicWord, variant: "attendee" | "screen", maximumCoun
     return `<span class="${buttonClass} opacity-60" style="${style}" aria-label="${escapeHtml(label)}">${escapeHtml(word.text)}${count}<span class="ml-2 align-middle text-[0.3em] font-semibold uppercase tracking-[0.14em] text-app-text-soft">Under consideration</span></span>`;
   }
 
+  if (variant === "present") {
+    return `<span class="${buttonClass}" style="${style}" aria-label="${escapeHtml(label)}">${escapeHtml(word.text)}${count}</span>`;
+  }
+
   if (word.votedByCurrentUser || word.submittedByCurrentUser) {
     return `<button class="${buttonClass} opacity-60" style="${style}" type="submit" aria-label="${escapeHtml(label)}" disabled>${escapeHtml(word.text)}${count}</button>`;
   }
@@ -388,7 +433,7 @@ function cloudWord(word: PublicWord, variant: "attendee" | "screen", maximumCoun
   </form>`;
 }
 
-function cloudWordSize(count: number, maximumCount: number, variant: "attendee" | "screen"): number {
+function cloudWordSize(count: number, maximumCount: number, variant: "attendee" | "present" | "screen"): number {
   const minimum = variant === "screen" ? 2.2 : 1.25;
   const maximum = variant === "screen" ? 7.8 : 4.2;
   const ratio = Math.log2(count + 1) / Math.log2(maximumCount + 1);
@@ -412,10 +457,10 @@ function moderatorWordRow(word: PublicWord): string {
       <span class="mr-auto text-xl font-semibold">${escapeHtml(word.text)}</span>
       <span class="text-sm font-semibold text-app-text-soft">${word.count}</span>
       ${status}
-      ${word.status === "pending" ? wordActionButton("/moderator/words/approve", word.id, "Approve", "bg-app-text text-white hover:bg-app-accent-strong") : wordPill(word, "moderator")}
-      ${wordActionButton("/moderator/words/hide", word.id, "Hide", "border-app-line bg-white text-app-text-soft hover:text-app-text")}
+      ${word.status === "pending" ? wordActionButton("/moderate/words/approve", word.id, "Approve", "bg-app-text text-white hover:bg-app-accent-strong") : wordPill(word, "moderator")}
+      ${wordActionButton("/moderate/words/hide", word.id, "Hide", "border-app-line bg-white text-app-text-soft hover:text-app-text")}
     </div>
-    <form class="mt-3 flex gap-2" method="post" action="/moderator/words/merge">
+    <form class="mt-3 flex gap-2" method="post" action="/moderate/words/merge">
       <input type="hidden" name="wordId" value="${escapeHtml(word.id)}">
       <input class="h-10 min-w-0 flex-1 rounded-md border border-app-line bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35" name="target" placeholder="Merge into">
       <button class="h-10 rounded-lg border border-app-line bg-white px-4 text-sm font-semibold text-app-text-soft transition hover:text-app-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35" type="submit">Merge</button>
@@ -423,14 +468,18 @@ function moderatorWordRow(word: PublicWord): string {
   </article>`;
 }
 
-function actions(question: PublicQuestion, role: "attendee" | "mc" | "moderator"): string {
-  const voteAction = role === "moderator" ? "/moderator/vote" : "/";
+function actions(question: PublicQuestion, role: "attendee" | "present" | "mc" | "moderator"): string {
+  const voteAction = role === "moderator" ? "/moderate/vote" : "/";
   const voteButton = question.votedByCurrentUser
     ? `<button class="h-10 rounded-lg border border-app-line bg-app-surface px-4 text-sm font-semibold text-app-text-soft" type="submit" disabled>Voted</button>`
     : actionButton(voteAction, question.id, "+1", "border-app-line bg-app-surface text-app-text hover:border-app-accent/40");
 
   if (role === "attendee") {
     return question.status === "pending" || question.submittedByCurrentUser ? "" : voteButton;
+  }
+
+  if (role === "present") {
+    return "";
   }
 
   if (role === "mc") {
@@ -445,11 +494,11 @@ function actions(question: PublicQuestion, role: "attendee" | "mc" | "moderator"
 
   const approveButton =
     question.status === "pending"
-      ? actionButton("/moderator/approve", question.id, "Approve", "bg-app-text text-white hover:bg-app-accent-strong")
+      ? actionButton("/moderate/approve", question.id, "Approve", "bg-app-text text-white hover:bg-app-accent-strong")
       : "";
   const moderatorVoteButton = question.status === "pending" ? "" : voteButton;
 
-  return `${approveButton}${moderatorVoteButton}${actionButton("/moderator/hide", question.id, "Hide", "border-app-line bg-white text-app-text-soft hover:text-app-text")}`;
+  return `${approveButton}${moderatorVoteButton}${actionButton("/moderate/hide", question.id, "Hide", "border-app-line bg-white text-app-text-soft hover:text-app-text")}`;
 }
 
 function actionButton(action: string, questionId: string, label: string, classes: string): string {

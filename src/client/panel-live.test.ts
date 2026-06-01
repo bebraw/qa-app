@@ -77,7 +77,7 @@ describe("panel live updates", () => {
 
   it("skips regions while focus is inside them", async () => {
     const region = {
-      ...createRegion("/moderator/questions/live", "old"),
+      ...createRegion("/moderate/questions/live", "old"),
       contains: vi.fn(() => true),
     } as unknown as TestRegion;
     const activeElement = {} as Element;

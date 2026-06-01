@@ -15,7 +15,7 @@ test("serves the health endpoint", async ({ request }) => {
   await expect(response.json()).resolves.toEqual({
     ok: true,
     name: "vibe-template-worker",
-    routes: ["/", "/mc", "/moderator", "/screen", "/words/screen", "/api/health"],
+    routes: ["/", "/present", "/mc", "/moderate", "/screen", "/words/screen", "/api/health"],
   });
 });
 

@@ -13,10 +13,10 @@ The implementation should stay lightweight enough to run inside the existing Wor
 - **Entry points:** `src/worker.ts` routes panel requests and forwards panel state routes to the `PanelRoom` Durable Object when the `PANEL_ROOM` binding is available.
 - **State model:** `src/panel/state.ts` stores questions, word-cloud entries, votes, active selection, hidden status, done status, ended word-cloud status, and rate-limit buckets for the active room.
 - **Auth model:** `src/panel/auth.ts` signs separate MC and moderator role cookies with `AUTH_SECRET`; MC and moderator passcodes come from `MC_PASSCODE` and `MODERATOR_PASSCODE`.
-- **Views:** `src/views/panel.ts` renders server-side HTML for attendee, MC, moderator, and audience-screen views.
+- **Views:** `src/views/panel.ts` renders server-side HTML for attendee, present, MC, moderator, and audience-screen views.
 - **Visual system:** Panel views use black-and-white UI tokens, the bundled Finlandica Headline font, and compact labels instead of explanatory helper text.
-- **Client behavior:** Regular attendee interaction stays rooted at `/`: asking questions, submitting words, and voting all post back to `/` and redirect back to `/`. MC and moderator forms post to their role-specific routes. Attendee, MC, moderator, and word-screen views also load the typed `/panel-live.js` module, which polls HTML fragments and replaces the relevant list so newly submitted, approved, or voted content appears without a manual refresh.
-- **Mode model:** The shared room defaults to QA mode. Moderator mode actions must use authenticated POST requests to `/moderator/mode` with `qa` or `wordcloud`; missing or invalid mode values fall back to QA.
+- **Client behavior:** Regular attendee interaction stays rooted at `/`: asking questions, submitting words, and voting all post back to `/` and redirect back to `/`. The `/present` view mirrors the active attendee mode without write controls. MC and moderator forms post to their role-specific routes. Attendee, present, MC, moderator, and word-screen views also load the typed `/panel-live.js` module, which polls HTML fragments and replaces the relevant list so newly submitted, approved, or voted content appears without a manual refresh.
+- **Mode model:** The shared room defaults to QA mode. Moderator mode actions must use authenticated POST requests to `/moderate/mode` with `qa` or `wordcloud`; missing or invalid mode values fall back to QA.
 - **Persistence:** Panel state is coordinated through a SQLite-backed Cloudflare Durable Object room so attendees, MC, moderator, and screen views share one authoritative state across Worker isolates. Ended word-cloud data remains visible to the moderator until reset for lightweight analytics review.
 - **Rate limiting:** Question and word creation are throttled by Cloudflare client IP when `cf-connecting-ip` is present and by a shared local fallback otherwise. Vote submissions are also throttled by that client IP key, and each anonymous attendee cookie can vote once per question or approved word. Failed MC and moderator login attempts are throttled by role and client IP.
 
@@ -61,9 +61,10 @@ Options for stronger controls:
 - [ ] Question creation is IP-throttled to reduce flooding.
 - [ ] Duplicate submitted words auto-increment the matching pending or approved word instead of creating another moderation item.
 - [ ] `GET /mc` requires the MC passcode and lets the MC select the active question or mark it done.
-- [ ] `GET /moderator` requires the moderator passcode and lets the moderator approve, add, vote on, hide, merge, end, and reset content.
+- [ ] `GET /moderate` requires the moderator passcode and lets the moderator approve, add, vote on, hide, merge, end, and reset content.
+- [ ] `GET /present` shows the active attendee-mode questions or approved words without forms or vote controls.
 - [ ] Moderator mode defaults to QA and can switch between QA and word-cloud mode without 404s.
-- [ ] `/moderator` shows question moderation only in QA mode and word-cloud moderation only in wordcloud mode.
+- [ ] `/moderate` shows question moderation only in QA mode and word-cloud moderation only in wordcloud mode.
 - [ ] MC and moderator queues show new submissions and vote counts without a manual browser refresh.
 - [ ] The MC queue keeps polling while focus is inside its action area so newly approved questions still appear for the MC.
 - [ ] `GET /screen` shows only the currently active question selected by the MC.
@@ -83,13 +84,14 @@ Options for stronger controls:
 - Client IP rate limits must not trust user-supplied forwarding headers such as `x-forwarded-for`.
 - Missing or invalid moderator mode values must resolve to QA mode.
 - GET requests must not change moderator-selected mode or any other panel state.
-- Word-cloud controls must not be visible in `/moderator` while the room is in QA mode.
-- Question moderation controls must not be visible in `/moderator` while the room is in wordcloud mode.
+- Word-cloud controls must not be visible in `/moderate` while the room is in QA mode.
+- Question moderation controls must not be visible in `/moderate` while the room is in wordcloud mode.
 - Hidden and done questions must not appear in the attendee queue.
 - Pending questions must not appear in other attendee queues, the MC queue, or the question screen.
 - Pending questions may appear only to the submitting attendee and must not be votable before approval.
 - Attendees must not be able to vote for questions or word-cloud words they submitted.
 - Approved questions must appear on already-open attendee question pages without a manual browser refresh.
+- Approved questions and words must appear on already-open present pages without a manual browser refresh.
 - MC and moderator queues must update when other attendees submit, vote, or when another operator changes moderation state.
 - Focus on an MC queue action must not prevent the MC queue from receiving live updates.
 - Pending word-cloud entries may appear only to submitting attendees and must not appear to other attendees or the word screen; hidden word-cloud entries must not appear in the attendee root word-cloud view or word screen.

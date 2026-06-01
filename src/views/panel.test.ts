@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PublicQuestion, PublicWord } from "../panel/state";
-import { renderAudiencePage, renderMcPage, renderModeratorPage, renderScreenPage, renderWordScreenPage } from "./panel";
+import { renderAudiencePage, renderMcPage, renderModeratorPage, renderPresentPage, renderScreenPage, renderWordScreenPage } from "./panel";
 
 const availableQuestion: PublicQuestion = {
   id: "question-1",
@@ -67,7 +67,7 @@ describe("panel views", () => {
     expect(html).toContain('action="/"');
     expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).toContain('action="/"');
     expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).not.toContain('action="/vote"');
-    expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).not.toContain('action="/moderator/vote"');
+    expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).not.toContain('action="/moderate/vote"');
     expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain("Readable");
     expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain("font-size:");
     expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain('name="word"');
@@ -87,11 +87,27 @@ describe("panel views", () => {
       "Set AUTH_SECRET",
     );
     expect(renderModeratorPage({ mode: "qa", questions: [], words: [], wordCloudEnded: false, auth: { configured: true } })).toContain(
-      'action="/moderator/login"',
+      'action="/moderate/login"',
     );
     expect(
       renderModeratorPage({ mode: "qa", questions: [], words: [], wordCloudEnded: false, auth: { configured: true, role: "moderator" } }),
     ).toContain("No questions to moderate.");
+  });
+
+  it("renders a read-only present view for the active attendee mode", () => {
+    const questionHtml = renderPresentPage({ mode: "qa", questions: [availableQuestion], words: [] });
+    const wordHtml = renderPresentPage({ mode: "wordcloud", questions: [], words: [approvedWord] });
+
+    expect(questionHtml).toContain("<title>Present - Future Frontend Panels</title>");
+    expect(questionHtml).toContain('<script src="/panel-live.js" type="module"></script>');
+    expect(questionHtml).toContain('data-live-src="/present/live"');
+    expect(questionHtml).toContain("How do we keep frontend systems understandable?");
+    expect(questionHtml).not.toContain("<form");
+    expect(questionHtml).not.toContain(">+1</button>");
+    expect(wordHtml).toContain("Readable");
+    expect(wordHtml).toContain("font-size:");
+    expect(wordHtml).not.toContain("<form");
+    expect(wordHtml).not.toContain('name="wordId"');
   });
 
   it("renders MC and moderator queues with role-specific actions", () => {
@@ -128,21 +144,21 @@ describe("panel views", () => {
     expect(mcHtml).toContain('type="submit" >Mark as done</button>');
     expect(mcHtml).toContain("bg-app-text text-white hover:bg-app-accent-strong");
     expect(moderatorHtml).toContain('<script src="/panel-live.js" type="module"></script>');
-    expect(moderatorHtml).toContain('data-live-src="/moderator/live"');
-    expect(moderatorHtml).toContain('action="/moderator/mode"');
+    expect(moderatorHtml).toContain('data-live-src="/moderate/live"');
+    expect(moderatorHtml).toContain('action="/moderate/mode"');
     expect(moderatorHtml).toContain('name="mode" value="qa"');
     expect(moderatorHtml).toContain('name="mode" value="wordcloud"');
-    expect(moderatorHtml).toContain('action="/moderator/vote"');
-    expect(moderatorHtml).toContain('action="/moderator"');
+    expect(moderatorHtml).toContain('action="/moderate/vote"');
+    expect(moderatorHtml).toContain('action="/moderate"');
     expect(moderatorHtml).toContain("Add moderator question");
-    expect(moderatorHtml).toContain('action="/moderator/hide"');
+    expect(moderatorHtml).toContain('action="/moderate/hide"');
     expect(moderatorHtml).toContain(">Hide</button>");
     expect(moderatorHtml).toContain("border-app-line bg-white text-app-text-soft hover:text-app-text");
     expect(moderatorHtml).toContain("Hidden");
     expect(moderatorHtml).toContain(">Reset</button>");
-    expect(moderatorHtml).not.toContain('action="/moderator/words/approve"');
-    expect(wordModeratorHtml).toContain('action="/moderator/words/approve"');
-    expect(wordModeratorHtml).toContain('action="/moderator/words/merge"');
+    expect(moderatorHtml).not.toContain('action="/moderate/words/approve"');
+    expect(wordModeratorHtml).toContain('action="/moderate/words/approve"');
+    expect(wordModeratorHtml).toContain('action="/moderate/words/merge"');
     expect(wordModeratorHtml).toContain("Ended");
     expect(wordModeratorHtml).not.toContain("Add moderator question");
     expect(moderatorHtml).not.toContain("Stryker was here!");
@@ -159,8 +175,8 @@ describe("panel views", () => {
 
     expect(moderatorHtml).toContain("Pending question");
     expect(moderatorHtml).toContain("Under consideration");
-    expect(moderatorHtml).toContain('action="/moderator/approve"');
-    expect(moderatorHtml).not.toContain('action="/moderator/vote"');
+    expect(moderatorHtml).toContain('action="/moderate/approve"');
+    expect(moderatorHtml).not.toContain('action="/moderate/vote"');
     expect(renderAudiencePage({ mode: "qa", questions: [pendingQuestion], words: [] })).toContain("Under consideration");
     expect(renderAudiencePage({ mode: "qa", questions: [pendingQuestion], words: [] })).not.toContain('action="/vote"');
   });

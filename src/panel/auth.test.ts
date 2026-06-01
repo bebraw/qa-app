@@ -72,12 +72,12 @@ describe("panel auth", () => {
       configured: true,
       role: "mc",
     });
-    await expect(readAuthState(new Request("https://example.com/moderator", { headers: { cookie: sharedCookie } }), env)).resolves.toEqual({
+    await expect(readAuthState(new Request("https://example.com/moderate", { headers: { cookie: sharedCookie } }), env)).resolves.toEqual({
       configured: true,
       role: "moderator",
     });
     await expect(
-      readAuthState(new Request("https://example.com/moderator/live", { headers: { cookie: sharedCookie } }), env),
+      readAuthState(new Request("https://example.com/moderate/live", { headers: { cookie: sharedCookie } }), env),
     ).resolves.toEqual({
       configured: true,
       role: "moderator",
@@ -85,7 +85,7 @@ describe("panel auth", () => {
     await expect(readAuthState(new Request("https://example.com/mc", { headers: { cookie: moderatorCookie } }), env)).resolves.toEqual({
       configured: true,
     });
-    await expect(readAuthState(new Request("https://example.com/moderator", { headers: { cookie: mcCookie } }), env)).resolves.toEqual({
+    await expect(readAuthState(new Request("https://example.com/moderate", { headers: { cookie: mcCookie } }), env)).resolves.toEqual({
       configured: true,
     });
   });
