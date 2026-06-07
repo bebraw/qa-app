@@ -55,6 +55,7 @@ Options for stronger controls:
 - [ ] Attendees can submit the question textarea with Return without inserting a newline.
 - [ ] Attendees can see their own pending questions as under consideration while those questions wait for moderator approval.
 - [ ] Attendee validation notices remain visible after live fragment refreshes.
+- [ ] Too-short question notices appear in-place without submitting the form or refreshing the page.
 - [ ] Attendees can submit anonymous word-cloud words.
 - [ ] Attendees can see their own pending word-cloud words as under consideration while those words wait for moderator approval.
 - [ ] Attendees can vote once per question and can vote on multiple questions.
@@ -82,6 +83,7 @@ Options for stronger controls:
 - Anonymous attendee identity must be documented as abuse-resistant rather than abuse-proof.
 - Regular attendee forms must use `/` as their action route; role, screen, asset, API, and live-fragment routes may remain separate.
 - Plain Return in a question textarea must submit the form, while modified Return key combinations must not force submission.
+- Question forms must block too-short submissions client-side with the same minimum length as the server guard, while preserving server-side validation as the authoritative fallback.
 - MC and moderator role cookies must be signed with `AUTH_SECRET` and use separate cookie names so both roles can stay signed in in different tabs of the same browser.
 - Role views must remain inaccessible when passcodes or `AUTH_SECRET` are not configured.
 - Repeated failed MC and moderator passcode attempts must be throttled by role and client IP.
@@ -135,7 +137,7 @@ Options for stronger controls:
 
 - Given: the panel app is open
 - When: an attendee submits a question that is below the minimum length
-- Then: the short-question notice remains visible even after the attendee page live fragment refreshes
+- Then: the short-question notice appears in-place without a page refresh and remains visible even after the attendee page live fragment refreshes
 
 **Scenario: Attendee voting is limited**
 

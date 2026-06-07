@@ -345,7 +345,7 @@ function operatorHeader(role: string): string {
 }
 
 function questionForm(action: string, label: string, placeholder: string, button: string): string {
-  return `<form class="rounded-lg border border-app-line bg-app-surface p-3 shadow-panel" method="post" action="${escapeHtml(action)}">
+  return `<form class="rounded-lg border border-app-line bg-app-surface p-3 shadow-panel" method="post" action="${escapeHtml(action)}" data-question-form="true" data-minimum-question-length="8">
     <label class="sr-only" for="question-text">${escapeHtml(label)}</label>
     <textarea class="min-h-24 w-full resize-y rounded-md border border-app-line bg-white px-4 py-3 text-lg leading-7 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35" id="question-text" name="question" maxlength="220" placeholder="${escapeHtml(placeholder)}" required data-submit-on-enter="true"></textarea>
     <button class="mt-3 h-12 w-full rounded-lg bg-app-text px-4 text-sm font-semibold uppercase tracking-[0.16em] text-white transition hover:bg-app-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/40" type="submit">${escapeHtml(button)}</button>

@@ -2,6 +2,8 @@ const pollIntervalMs = 2_000;
 const eventsPath = "/events";
 const panelStateEvent = "panel-state";
 const enterSubmitTextareas = new WeakSet<HTMLTextAreaElement>();
+const validatedQuestionForms = new WeakSet<HTMLFormElement>();
+const liveNoticeClass = "rounded-lg border border-app-line bg-white px-4 py-3 text-sm font-semibold text-app-text-soft shadow-panel";
 
 interface LiveRegion extends HTMLElement {
   readonly dataset: DOMStringMap & {
@@ -12,6 +14,7 @@ interface LiveRegion extends HTMLElement {
 
 export function startLiveUpdates(root: ParentNode = document): void {
   bindSubmitOnEnter(root);
+  bindQuestionValidation(root);
 
   const regions = [...root.querySelectorAll<LiveRegion>("[data-live-region][data-live-src]")];
 
@@ -64,6 +67,24 @@ export async function refreshRegion(region: LiveRegion): Promise<void> {
   if (region.innerHTML !== nextHtml) {
     region.innerHTML = nextHtml;
     bindSubmitOnEnter(region);
+    bindQuestionValidation(region);
+  }
+}
+
+export function bindQuestionValidation(root: ParentNode = document): void {
+  if (typeof root.querySelectorAll !== "function") {
+    return;
+  }
+
+  const forms = [...root.querySelectorAll<HTMLFormElement>("form[data-question-form]")];
+
+  for (const form of forms) {
+    if (typeof form.addEventListener !== "function" || validatedQuestionForms.has(form)) {
+      continue;
+    }
+
+    form.addEventListener("submit", validateQuestionForm);
+    validatedQuestionForms.add(form);
   }
 }
 
@@ -91,6 +112,57 @@ function submitFormOnEnter(event: KeyboardEvent): void {
   }
 
   form.submit();
+}
+
+function validateQuestionForm(event: SubmitEvent): void {
+  const target = event.currentTarget;
+
+  if (typeof HTMLFormElement === "undefined" || !(target instanceof HTMLFormElement)) {
+    return;
+  }
+
+  const textarea = target.querySelector<HTMLTextAreaElement>('textarea[name="question"]');
+  const minimumLength = Number.parseInt(target.dataset.minimumQuestionLength ?? "", 10);
+
+  if (!textarea || !Number.isFinite(minimumLength) || normalizeQuestionText(textarea.value).length >= minimumLength) {
+    removeLocalNotice(target);
+    return;
+  }
+
+  event.preventDefault();
+  renderLocalNotice(target, "Question is too short.");
+}
+
+function renderLocalNotice(form: HTMLFormElement, message: string): void {
+  const existingNotice = findLocalNotice(form);
+  if (existingNotice) {
+    existingNotice.textContent = message;
+    return;
+  }
+
+  const notice = form.ownerDocument.createElement("p");
+  notice.className = liveNoticeClass;
+  notice.dataset.liveNotice = "true";
+  notice.dataset.localNotice = "true";
+  notice.textContent = message;
+  form.before(notice);
+}
+
+function removeLocalNotice(form: HTMLFormElement): void {
+  findLocalNotice(form)?.remove();
+}
+
+function findLocalNotice(form: HTMLFormElement): HTMLElement | null {
+  if (typeof HTMLElement === "undefined") {
+    return null;
+  }
+
+  const previousElement = form.previousElementSibling;
+  return previousElement instanceof HTMLElement && previousElement.dataset.localNotice === "true" ? previousElement : null;
+}
+
+function normalizeQuestionText(text: string): string {
+  return text.replaceAll(/\s+/g, " ").trim();
 }
 
 if (typeof document !== "undefined") {

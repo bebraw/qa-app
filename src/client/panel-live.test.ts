@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { bindSubmitOnEnter, refreshRegion, startLiveUpdates } from "./panel-live";
+import { bindQuestionValidation, bindSubmitOnEnter, refreshRegion, startLiveUpdates } from "./panel-live";
 
 interface TestRegion extends HTMLElement {
   dataset: DOMStringMap & {
@@ -175,7 +175,7 @@ describe("panel live updates", () => {
     };
     const region = {
       ...createRegion("/live", "old"),
-      querySelectorAll: vi.fn(() => [textarea]),
+      querySelectorAll: vi.fn((selector: string) => (selector === "textarea[data-submit-on-enter]" ? [textarea] : [])),
     } as unknown as TestRegion;
     vi.stubGlobal(
       "fetch",
@@ -188,6 +188,77 @@ describe("panel live updates", () => {
     expect(region.innerHTML).toBe("<form>new</form>");
     expect(region.querySelectorAll).toHaveBeenCalledWith("textarea[data-submit-on-enter]");
     expect(textarea.addEventListener).toHaveBeenCalledWith("keydown", expect.any(Function));
+  });
+
+  it("shows a local notice instead of submitting too-short questions", () => {
+    let submitListener: EventListener | undefined;
+    const textarea = { value: "Too" };
+    const notices: TestElement[] = [];
+
+    class TestElement {
+      className = "";
+      dataset: Record<string, string> = {};
+      textContent = "";
+
+      remove(): void {
+        notices.pop();
+      }
+    }
+
+    class TestForm extends TestElement {
+      override readonly dataset = { minimumQuestionLength: "8" };
+      previousElementSibling: TestElement | null = null;
+      readonly ownerDocument = {
+        createElement: vi.fn(() => new TestElement()),
+      };
+
+      addEventListener(event: string, listener: EventListener): void {
+        if (event === "submit") {
+          submitListener = listener;
+        }
+      }
+
+      before(notice: TestElement): void {
+        notices.push(notice);
+        this.previousElementSibling = notice;
+      }
+
+      querySelector(selector: string): typeof textarea | null {
+        return selector === 'textarea[name="question"]' ? textarea : null;
+      }
+    }
+
+    const form = new TestForm();
+    const root = {
+      querySelectorAll: vi.fn<ParentNode["querySelectorAll"]>(() => [form] as unknown as NodeListOf<Element>),
+    } as unknown as ParentNode;
+    vi.stubGlobal("HTMLFormElement", TestForm);
+    vi.stubGlobal("HTMLElement", TestElement);
+
+    bindQuestionValidation(root);
+
+    expect(root.querySelectorAll).toHaveBeenCalledWith("form[data-question-form]");
+    expect(submitListener).toEqual(expect.any(Function));
+
+    const preventDefault = vi.fn();
+    submitListener?.({
+      currentTarget: form,
+      preventDefault,
+    } as unknown as Event);
+
+    expect(preventDefault).toHaveBeenCalled();
+    expect(form.ownerDocument.createElement).toHaveBeenCalledWith("p");
+    expect(notices[0]?.dataset).toMatchObject({ liveNotice: "true", localNotice: "true" });
+    expect(notices[0]?.textContent).toBe("Question is too short.");
+
+    textarea.value = "What now?";
+    submitListener?.({
+      currentTarget: form,
+      preventDefault,
+    } as unknown as Event);
+
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    expect(notices).toHaveLength(0);
   });
 
   it("skips regions while focus is inside them", async () => {

@@ -62,6 +62,8 @@ describe("panel views", () => {
     expect(html).toContain("bg-app-canvas text-app-text");
     expect(html).toContain("Question added.");
     expect(html).toContain("How do we keep frontend systems understandable?");
+    expect(html).toContain('data-question-form="true"');
+    expect(html).toContain('data-minimum-question-length="8"');
     expect(html).toContain('data-submit-on-enter="true"');
     expect(html).toContain("Live");
     expect(html).toContain("Voted");
