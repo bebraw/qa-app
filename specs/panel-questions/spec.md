@@ -52,6 +52,7 @@ Options for stronger controls:
 - [ ] `/` follows the moderator-selected room mode, showing QA in QA mode and word submissions in wordcloud mode.
 - [ ] Regular attendee submissions and votes post to `/` for every attendee-facing mode.
 - [ ] Attendees can add anonymous questions that remain pending until moderator approval.
+- [ ] Attendees can submit the question textarea with Return without inserting a newline.
 - [ ] Attendees can see their own pending questions as under consideration while those questions wait for moderator approval.
 - [ ] Attendee validation notices remain visible after live fragment refreshes.
 - [ ] Attendees can submit anonymous word-cloud words.
@@ -80,6 +81,7 @@ Options for stronger controls:
 - Anonymous attendee identity must be cookie-based and must not require a login flow.
 - Anonymous attendee identity must be documented as abuse-resistant rather than abuse-proof.
 - Regular attendee forms must use `/` as their action route; role, screen, asset, API, and live-fragment routes may remain separate.
+- Plain Return in a question textarea must submit the form, while modified Return key combinations must not force submission.
 - MC and moderator role cookies must be signed with `AUTH_SECRET` and use separate cookie names so both roles can stay signed in in different tabs of the same browser.
 - Role views must remain inaccessible when passcodes or `AUTH_SECRET` are not configured.
 - Repeated failed MC and moderator passcode attempts must be throttled by role and client IP.
@@ -120,7 +122,7 @@ Options for stronger controls:
 **Scenario: Attendee asks and votes**
 
 - Given: the panel app is open
-- When: an attendee submits a valid question
+- When: an attendee enters a valid question and presses Return
 - Then: the question appears in the moderator queue as under consideration, appears as under consideration for the submitting attendee, and does not receive a submitter vote
 
 **Scenario: Moderator approves an attendee question**

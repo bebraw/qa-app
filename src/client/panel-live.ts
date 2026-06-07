@@ -1,6 +1,7 @@
 const pollIntervalMs = 2_000;
 const eventsPath = "/events";
 const panelStateEvent = "panel-state";
+const enterSubmitTextareas = new WeakSet<HTMLTextAreaElement>();
 
 interface LiveRegion extends HTMLElement {
   readonly dataset: DOMStringMap & {
@@ -10,6 +11,8 @@ interface LiveRegion extends HTMLElement {
 }
 
 export function startLiveUpdates(root: ParentNode = document): void {
+  bindSubmitOnEnter(root);
+
   const regions = [...root.querySelectorAll<LiveRegion>("[data-live-region][data-live-src]")];
 
   subscribeToPanelEvents(regions);
@@ -19,6 +22,23 @@ export function startLiveUpdates(root: ParentNode = document): void {
     globalThis.setInterval(() => {
       void refreshRegion(region);
     }, pollIntervalMs);
+  }
+}
+
+export function bindSubmitOnEnter(root: ParentNode = document): void {
+  if (typeof root.querySelectorAll !== "function") {
+    return;
+  }
+
+  const textareas = [...root.querySelectorAll<HTMLTextAreaElement>("textarea[data-submit-on-enter]")];
+
+  for (const textarea of textareas) {
+    if (typeof textarea.addEventListener !== "function" || enterSubmitTextareas.has(textarea)) {
+      continue;
+    }
+
+    textarea.addEventListener("keydown", submitFormOnEnter);
+    enterSubmitTextareas.add(textarea);
   }
 }
 
@@ -43,7 +63,34 @@ export async function refreshRegion(region: LiveRegion): Promise<void> {
 
   if (region.innerHTML !== nextHtml) {
     region.innerHTML = nextHtml;
+    bindSubmitOnEnter(region);
   }
+}
+
+function submitFormOnEnter(event: KeyboardEvent): void {
+  if (event.key !== "Enter" || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey || event.isComposing) {
+    return;
+  }
+
+  event.preventDefault();
+  const target = event.currentTarget;
+
+  if (typeof HTMLTextAreaElement === "undefined" || !(target instanceof HTMLTextAreaElement)) {
+    return;
+  }
+
+  const form = target.form;
+
+  if (!form) {
+    return;
+  }
+
+  if (typeof form.requestSubmit === "function") {
+    form.requestSubmit();
+    return;
+  }
+
+  form.submit();
 }
 
 if (typeof document !== "undefined") {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { refreshRegion, startLiveUpdates } from "./panel-live";
+import { bindSubmitOnEnter, refreshRegion, startLiveUpdates } from "./panel-live";
 
 interface TestRegion extends HTMLElement {
   dataset: DOMStringMap & {
@@ -169,6 +169,27 @@ describe("panel live updates", () => {
     expect(region.innerHTML).toBe('<p data-live-notice="true">Question is too short.</p><form>new</form>');
   });
 
+  it("binds Enter submission on textareas inserted by a live refresh", async () => {
+    const textarea = {
+      addEventListener: vi.fn(),
+    };
+    const region = {
+      ...createRegion("/live", "old"),
+      querySelectorAll: vi.fn(() => [textarea]),
+    } as unknown as TestRegion;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof globalThis.fetch>(async () => new Response("<form>new</form>")),
+    );
+    vi.stubGlobal("document", { hidden: false });
+
+    await refreshRegion(region);
+
+    expect(region.innerHTML).toBe("<form>new</form>");
+    expect(region.querySelectorAll).toHaveBeenCalledWith("textarea[data-submit-on-enter]");
+    expect(textarea.addEventListener).toHaveBeenCalledWith("keydown", expect.any(Function));
+  });
+
   it("skips regions while focus is inside them", async () => {
     const region = {
       ...createRegion("/moderate/questions/live", "old"),
@@ -232,5 +253,61 @@ describe("panel live updates", () => {
     await vi.waitFor(() => {
       expect(region.innerHTML).toBe("interval");
     });
+  });
+
+  it("submits question textareas on plain Enter and preserves modified Enter keys", () => {
+    const form = {
+      requestSubmit: vi.fn(),
+      submit: vi.fn(),
+    };
+    let keydownListener: EventListener | undefined;
+    class TestTextArea {
+      readonly form = form;
+
+      addEventListener(event: string, listener: EventListener): void {
+        if (event === "keydown") {
+          keydownListener = listener;
+        }
+      }
+    }
+    const textarea = new TestTextArea();
+    const root = {
+      querySelectorAll: vi.fn<ParentNode["querySelectorAll"]>(() => [textarea] as unknown as NodeListOf<Element>),
+    } as unknown as ParentNode;
+    vi.stubGlobal("HTMLTextAreaElement", TestTextArea);
+
+    bindSubmitOnEnter(root);
+
+    expect(root.querySelectorAll).toHaveBeenCalledWith("textarea[data-submit-on-enter]");
+    expect(keydownListener).toEqual(expect.any(Function));
+
+    const preventDefault = vi.fn();
+    keydownListener?.({
+      altKey: false,
+      ctrlKey: false,
+      currentTarget: textarea,
+      isComposing: false,
+      key: "Enter",
+      metaKey: false,
+      preventDefault,
+      shiftKey: false,
+    } as unknown as Event);
+
+    expect(preventDefault).toHaveBeenCalled();
+    expect(form.requestSubmit).toHaveBeenCalledTimes(1);
+    expect(form.submit).not.toHaveBeenCalled();
+
+    keydownListener?.({
+      altKey: false,
+      ctrlKey: false,
+      currentTarget: textarea,
+      isComposing: false,
+      key: "Enter",
+      metaKey: false,
+      preventDefault,
+      shiftKey: true,
+    } as unknown as Event);
+
+    expect(form.requestSubmit).toHaveBeenCalledTimes(1);
   });
 });
