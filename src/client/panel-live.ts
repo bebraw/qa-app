@@ -134,8 +134,10 @@ function validateQuestionForm(event: SubmitEvent): void {
 }
 
 function renderLocalNotice(form: HTMLFormElement, message: string): void {
-  const existingNotice = findLocalNotice(form);
+  const existingNotice = findReusableNotice(form);
   if (existingNotice) {
+    existingNotice.dataset.liveNotice = "true";
+    existingNotice.dataset.localNotice = "true";
     existingNotice.textContent = message;
     return;
   }
@@ -152,13 +154,32 @@ function removeLocalNotice(form: HTMLFormElement): void {
   findLocalNotice(form)?.remove();
 }
 
+function findReusableNotice(form: HTMLFormElement): HTMLElement | null {
+  return findLocalNotice(form) ?? findScopedNotice(form, "[data-live-notice]");
+}
+
 function findLocalNotice(form: HTMLFormElement): HTMLElement | null {
   if (typeof HTMLElement === "undefined") {
     return null;
   }
 
   const previousElement = form.previousElementSibling;
-  return previousElement instanceof HTMLElement && previousElement.dataset.localNotice === "true" ? previousElement : null;
+  if (previousElement instanceof HTMLElement && previousElement.dataset.localNotice === "true") {
+    return previousElement;
+  }
+
+  return findScopedNotice(form, "[data-live-notice][data-local-notice]");
+}
+
+function findScopedNotice(form: HTMLFormElement, selector: string): HTMLElement | null {
+  if (typeof HTMLElement === "undefined") {
+    return null;
+  }
+
+  const scope = typeof form.closest === "function" ? (form.closest("[data-live-region]") ?? form.parentElement) : form.parentElement;
+  const notice = scope?.querySelector(selector);
+
+  return notice instanceof HTMLElement ? notice : null;
 }
 
 function normalizeQuestionText(text: string): string {

@@ -261,6 +261,81 @@ describe("panel live updates", () => {
     expect(notices).toHaveLength(0);
   });
 
+  it("reuses an existing live notice for repeated too-short questions", () => {
+    let submitListener: EventListener | undefined;
+    const textarea = { value: "Too" };
+
+    class TestElement {
+      dataset: Record<string, string> = {};
+      textContent = "";
+
+      querySelector(_selector: string): unknown | null {
+        return null;
+      }
+    }
+
+    const existingNotice = new TestElement();
+    existingNotice.dataset.liveNotice = "true";
+    existingNotice.textContent = "Question is too short.";
+
+    class TestRegion extends TestElement {
+      override querySelector(selector: string): TestElement | null {
+        return selector === "[data-live-notice]" || selector === "[data-live-notice][data-local-notice]" ? existingNotice : null;
+      }
+    }
+
+    class TestForm extends TestElement {
+      override readonly dataset = { minimumQuestionLength: "8" };
+      previousElementSibling = new TestElement();
+      parentElement = new TestRegion();
+      readonly ownerDocument = {
+        createElement: vi.fn(() => new TestElement()),
+      };
+
+      addEventListener(event: string, listener: EventListener): void {
+        if (event === "submit") {
+          submitListener = listener;
+        }
+      }
+
+      before(): void {
+        throw new Error("repeated short submissions should reuse the existing notice");
+      }
+
+      closest(selector: string): TestRegion | null {
+        return selector === "[data-live-region]" ? this.parentElement : null;
+      }
+
+      override querySelector(selector: string): typeof textarea | null {
+        return selector === 'textarea[name="question"]' ? textarea : null;
+      }
+    }
+
+    const form = new TestForm();
+    const root = {
+      querySelectorAll: vi.fn<ParentNode["querySelectorAll"]>(() => [form] as unknown as NodeListOf<Element>),
+    } as unknown as ParentNode;
+    vi.stubGlobal("HTMLFormElement", TestForm);
+    vi.stubGlobal("HTMLElement", TestElement);
+
+    bindQuestionValidation(root);
+
+    const preventDefault = vi.fn();
+    submitListener?.({
+      currentTarget: form,
+      preventDefault,
+    } as unknown as Event);
+    submitListener?.({
+      currentTarget: form,
+      preventDefault,
+    } as unknown as Event);
+
+    expect(preventDefault).toHaveBeenCalledTimes(2);
+    expect(form.ownerDocument.createElement).not.toHaveBeenCalled();
+    expect(existingNotice.dataset).toMatchObject({ liveNotice: "true", localNotice: "true" });
+    expect(existingNotice.textContent).toBe("Question is too short.");
+  });
+
   it("skips regions while focus is inside them", async () => {
     const region = {
       ...createRegion("/moderate/questions/live", "old"),
