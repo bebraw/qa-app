@@ -133,6 +133,42 @@ describe("panel live updates", () => {
     expect(assignmentCount).toBe(0);
   });
 
+  it("preserves a rendered notice when replacing a live region with notice-free HTML", async () => {
+    const notice = {
+      cloneNode: vi.fn(() => ({ outerHTML: '<p data-live-notice="true">Question is too short.</p>' })),
+    };
+    const nextRoot = {
+      firstChild: {},
+      innerHTML: "<form>new</form>",
+      querySelector: vi.fn(() => null),
+      insertBefore: vi.fn((node: { outerHTML: string }) => {
+        nextRoot.innerHTML = `${node.outerHTML}${nextRoot.innerHTML}`;
+      }),
+    };
+    const region = {
+      ...createRegion("/live", '<p data-live-notice="true">Question is too short.</p><form>old</form>'),
+      querySelector: vi.fn(() => notice),
+    } as unknown as TestRegion;
+    const DOMParser = vi.fn(function TestDOMParser(this: DOMParser) {
+      Object.assign(this, {
+        parseFromString: vi.fn(() => ({ body: { firstElementChild: nextRoot } })),
+      });
+    });
+    vi.stubGlobal("DOMParser", DOMParser);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof globalThis.fetch>(async () => new Response("<form>new</form>")),
+    );
+    vi.stubGlobal("document", { hidden: false });
+
+    await refreshRegion(region);
+
+    expect(region.querySelector).toHaveBeenCalledWith("[data-live-notice]");
+    expect(nextRoot.querySelector).toHaveBeenCalledWith("[data-live-notice]");
+    expect(notice.cloneNode).toHaveBeenCalledWith(true);
+    expect(region.innerHTML).toBe('<p data-live-notice="true">Question is too short.</p><form>new</form>');
+  });
+
   it("skips regions while focus is inside them", async () => {
     const region = {
       ...createRegion("/moderate/questions/live", "old"),

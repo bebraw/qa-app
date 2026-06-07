@@ -53,6 +53,7 @@ Options for stronger controls:
 - [ ] Regular attendee submissions and votes post to `/` for every attendee-facing mode.
 - [ ] Attendees can add anonymous questions that remain pending until moderator approval.
 - [ ] Attendees can see their own pending questions as under consideration while those questions wait for moderator approval.
+- [ ] Attendee validation notices remain visible after live fragment refreshes.
 - [ ] Attendees can submit anonymous word-cloud words.
 - [ ] Attendees can see their own pending word-cloud words as under consideration while those words wait for moderator approval.
 - [ ] Attendees can vote once per question and can vote on multiple questions.
@@ -93,6 +94,7 @@ Options for stronger controls:
 - Attendees must not be able to vote for questions or word-cloud words they submitted.
 - Approved questions must appear on already-open attendee question pages without a manual browser refresh.
 - Approved questions and words must appear on already-open present pages without a manual browser refresh.
+- Attendee notices, including short-question validation messages, must not be removed by the immediate live-fragment refresh that follows page load.
 - MC and moderator queues must update when other attendees submit, vote, or when another operator changes moderation state.
 - The Durable Object room must emit server-sent events after state-changing POST requests, and clients must keep polling as a fallback.
 - Focus on an MC queue action must not prevent the MC queue from receiving live updates.
@@ -126,6 +128,12 @@ Options for stronger controls:
 - Given: an attendee question is pending
 - When: the moderator approves it
 - Then: the question appears in attendee queues, including already-open attendee pages after the live poll updates
+
+**Scenario: Attendee submits a short question**
+
+- Given: the panel app is open
+- When: an attendee submits a question that is below the minimum length
+- Then: the short-question notice remains visible even after the attendee page live fragment refreshes
 
 **Scenario: Attendee voting is limited**
 

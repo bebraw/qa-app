@@ -39,9 +39,10 @@ export async function refreshRegion(region: LiveRegion): Promise<void> {
   }
 
   const html = await response.text();
+  const nextHtml = preserveLiveNotice(region, html);
 
-  if (region.innerHTML !== html) {
-    region.innerHTML = html;
+  if (region.innerHTML !== nextHtml) {
+    region.innerHTML = nextHtml;
   }
 }
 
@@ -77,4 +78,26 @@ function focusedWithin(region: LiveRegion): boolean {
 
 function shouldPreserveFocusedRegion(region: LiveRegion): boolean {
   return region.dataset.liveRefreshWhenFocused !== "true" && focusedWithin(region);
+}
+
+function preserveLiveNotice(region: LiveRegion, html: string): string {
+  if (typeof DOMParser === "undefined") {
+    return html;
+  }
+
+  const currentNotice = region.querySelector("[data-live-notice]");
+  if (!currentNotice) {
+    return html;
+  }
+
+  const parser = new DOMParser();
+  const nextDocument = parser.parseFromString(`<section>${html}</section>`, "text/html");
+  const nextRoot = nextDocument.body.firstElementChild;
+
+  if (!nextRoot || nextRoot.querySelector("[data-live-notice]")) {
+    return html;
+  }
+
+  nextRoot.insertBefore(currentNotice.cloneNode(true), nextRoot.firstChild);
+  return nextRoot.innerHTML;
 }

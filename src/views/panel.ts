@@ -527,7 +527,7 @@ function wordActionButton(action: string, wordId: string, label: string, classes
 
 function notice(message: string | undefined): string {
   return message
-    ? `<p class="rounded-lg border border-app-line bg-white px-4 py-3 text-sm font-semibold text-app-text-soft shadow-panel">${escapeHtml(message)}</p>`
+    ? `<p class="rounded-lg border border-app-line bg-white px-4 py-3 text-sm font-semibold text-app-text-soft shadow-panel" data-live-notice="true">${escapeHtml(message)}</p>`
     : "";
 }
 
