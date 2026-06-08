@@ -20,7 +20,7 @@ export function startLiveUpdates(root: ParentNode = document): void {
 
   const regions = [...root.querySelectorAll<LiveRegion>("[data-live-region][data-live-src]")];
 
-  subscribeToPanelEvents(regions);
+  subscribeToPanelEvents(root, regions.length);
 
   for (const region of regions) {
     void refreshRegion(region);
@@ -207,14 +207,14 @@ if (typeof document !== "undefined") {
   startLiveUpdates();
 }
 
-function subscribeToPanelEvents(regions: readonly LiveRegion[]): void {
-  if (regions.length === 0 || typeof EventSource === "undefined") {
+function subscribeToPanelEvents(root: ParentNode, initialRegionCount: number): void {
+  if (initialRegionCount === 0 || typeof EventSource === "undefined") {
     return;
   }
 
   const events = new EventSource(eventsPath);
   events.addEventListener(panelStateEvent, () => {
-    refreshRegions(regions);
+    refreshRegions(findLiveRegions(root));
   });
 }
 

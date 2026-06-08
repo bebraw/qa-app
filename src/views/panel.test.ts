@@ -159,6 +159,7 @@ describe("panel views", () => {
     expect(mcHtml).toContain("bg-app-text text-white hover:bg-app-accent-strong");
     expect(moderatorHtml).toContain('<script src="/panel-live.js" type="module"></script>');
     expect(moderatorHtml).toContain('data-live-src="/moderate/live"');
+    expect(moderatorHtml).toContain('data-live-src="/moderate/questions/live"');
     expect(moderatorHtml).toContain('action="/moderate/mode"');
     expect(moderatorHtml).toContain('name="mode" value="qa"');
     expect(moderatorHtml).toContain('name="mode" value="wordcloud"');
@@ -181,6 +182,7 @@ describe("panel views", () => {
     expect(moderatorHtml).not.toContain('action="/moderate/reset" data-live-action-form="true"');
     expect(moderatorHtml).not.toContain('action="/moderate/words/approve"');
     expect(wordModeratorHtml).toContain('action="/moderate/words/approve"');
+    expect(wordModeratorHtml).toContain('data-live-src="/moderate/words/live"');
     expect(wordModeratorHtml).toContain('action="/moderate/words/approve" data-live-action-form="true"');
     expect(wordModeratorHtml).toContain('action="/moderate/words/merge"');
     expect(wordModeratorHtml).toContain('action="/moderate/words/merge" data-live-action-form="true"');

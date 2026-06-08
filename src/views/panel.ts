@@ -171,16 +171,14 @@ export function renderModeratorModeContent(view: RoleViewModel): string {
   if (view.mode === "wordcloud") {
     return `${modeSwitch(view.mode)}
       ${wordPromptForm(view.wordPrompt)}
-      ${renderModeratorWordsContent(view.words, view.wordCloudEnded)}
+      ${renderModeratorWordsFragment(view.words, view.wordCloudEnded)}
       ${resetForm}`;
   }
 
   return `${modeSwitch(view.mode)}
     ${questionForm("/moderate", "Add moderator question", "Question", "Add")}
     ${resetForm}
-    <section class="space-y-3" aria-label="Questions for moderator">
-      ${renderModeratorQuestionsContent(view.questions)}
-    </section>`;
+    ${renderModeratorQuestionsFragment(view.questions)}`;
 }
 
 export function renderModeratorQuestionsFragment(questions: PublicQuestion[]): string {

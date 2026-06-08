@@ -92,6 +92,58 @@ describe("panel live updates", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
+  it("rediscovers current live regions when the durable object event stream emits a state change", async () => {
+    const initialRegion = createRegion("/moderate/live", "old shell");
+    const currentRegion = createRegion("/moderate/questions/live", "old questions");
+    const regions = [[initialRegion], [currentRegion]];
+    const root = {
+      querySelectorAll: vi.fn<ParentNode["querySelectorAll"]>((selector: string) => {
+        if (selector === "[data-live-region][data-live-src]") {
+          return (regions.shift() ?? []) as unknown as NodeListOf<Element>;
+        }
+
+        return [] as unknown as NodeListOf<Element>;
+      }),
+    } as unknown as ParentNode;
+    const listeners = new Map<string, EventListenerOrEventListenerObject>();
+    const EventSource = vi.fn(function TestEventSource(this: EventSource) {
+      Object.assign(this, {
+        addEventListener: vi.fn((event: string, listener: EventListenerOrEventListenerObject) => {
+          listeners.set(event, listener);
+        }),
+      });
+    });
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(new Response("new shell"))
+      .mockResolvedValueOnce(new Response("new questions"));
+    vi.stubGlobal("fetch", fetch);
+    vi.stubGlobal("document", { activeElement: {}, hidden: false });
+    vi.stubGlobal("EventSource", EventSource);
+
+    startLiveUpdates(root);
+    await vi.waitFor(() => {
+      expect(initialRegion.innerHTML).toBe("new shell");
+    });
+
+    const listener = listeners.get("panel-state");
+    expect(listener).toEqual(expect.any(Function));
+    if (typeof listener === "function") {
+      listener(new Event("panel-state"));
+    }
+
+    await vi.waitFor(() => {
+      expect(currentRegion.innerHTML).toBe("new questions");
+    });
+    expect(root.querySelectorAll).toHaveBeenCalledWith("[data-live-region][data-live-src]");
+    expect(root.querySelectorAll).toHaveBeenCalledWith("textarea[data-submit-on-enter]");
+    expect(root.querySelectorAll).toHaveBeenCalledWith("form[data-live-action-form]");
+    expect(fetch).toHaveBeenNthCalledWith(2, "/moderate/questions/live", {
+      headers: { accept: "text/html" },
+      cache: "no-store",
+    });
+  });
+
   it("does not subscribe to events when event streams are unavailable", async () => {
     const region = createRegion();
     const root = {
