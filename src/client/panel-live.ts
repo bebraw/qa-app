@@ -3,6 +3,7 @@ const eventsPath = "/events";
 const panelStateEvent = "panel-state";
 const enterSubmitTextareas = new WeakSet<HTMLTextAreaElement>();
 const validatedQuestionForms = new WeakSet<HTMLFormElement>();
+const liveVoteForms = new WeakSet<HTMLFormElement>();
 const liveNoticeClass = "rounded-lg border border-app-line bg-white px-4 py-3 text-sm font-semibold text-app-text-soft shadow-panel";
 
 interface LiveRegion extends HTMLElement {
@@ -15,6 +16,7 @@ interface LiveRegion extends HTMLElement {
 export function startLiveUpdates(root: ParentNode = document): void {
   bindSubmitOnEnter(root);
   bindQuestionValidation(root);
+  bindLiveVoteForms(root);
 
   const regions = [...root.querySelectorAll<LiveRegion>("[data-live-region][data-live-src]")];
 
@@ -45,10 +47,10 @@ export function bindSubmitOnEnter(root: ParentNode = document): void {
   }
 }
 
-export async function refreshRegion(region: LiveRegion): Promise<void> {
+export async function refreshRegion(region: LiveRegion, options: { readonly forceFocused?: boolean } = {}): Promise<void> {
   const source = region.dataset.liveSrc;
 
-  if (!source || document.hidden || shouldPreserveFocusedRegion(region)) {
+  if (!source || document.hidden || (!options.forceFocused && shouldPreserveFocusedRegion(region))) {
     return;
   }
 
@@ -68,6 +70,7 @@ export async function refreshRegion(region: LiveRegion): Promise<void> {
     region.innerHTML = nextHtml;
     bindSubmitOnEnter(region);
     bindQuestionValidation(region);
+    bindLiveVoteForms(region);
   }
 }
 
@@ -85,6 +88,23 @@ export function bindQuestionValidation(root: ParentNode = document): void {
 
     form.addEventListener("submit", validateQuestionForm);
     validatedQuestionForms.add(form);
+  }
+}
+
+export function bindLiveVoteForms(root: ParentNode = document): void {
+  if (typeof root.querySelectorAll !== "function") {
+    return;
+  }
+
+  const forms = [...root.querySelectorAll<HTMLFormElement>("form[data-live-vote-form]")];
+
+  for (const form of forms) {
+    if (typeof form.addEventListener !== "function" || liveVoteForms.has(form)) {
+      continue;
+    }
+
+    form.addEventListener("submit", submitLiveVoteForm);
+    liveVoteForms.add(form);
   }
 }
 
@@ -201,10 +221,47 @@ function subscribeToPanelEvents(regions: readonly LiveRegion[]): void {
   });
 }
 
-function refreshRegions(regions: readonly LiveRegion[]): void {
+function refreshRegions(regions: readonly LiveRegion[], options: { readonly forceFocused?: boolean } = {}): void {
   for (const region of regions) {
-    void refreshRegion(region);
+    void refreshRegion(region, options);
   }
+}
+
+async function submitLiveVoteForm(event: SubmitEvent): Promise<void> {
+  const target = event.currentTarget;
+
+  if (typeof HTMLFormElement === "undefined" || typeof FormData === "undefined" || !(target instanceof HTMLFormElement)) {
+    return;
+  }
+
+  event.preventDefault();
+
+  try {
+    const response = await fetch(target.getAttribute("action") || target.action, {
+      method: target.method || "post",
+      body: new FormData(target),
+      credentials: "same-origin",
+      headers: { accept: "text/html" },
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      target.submit();
+      return;
+    }
+
+    refreshRegions(findLiveRegions(document), { forceFocused: true });
+  } catch {
+    target.submit();
+  }
+}
+
+function findLiveRegions(root: ParentNode): LiveRegion[] {
+  if (typeof root.querySelectorAll !== "function") {
+    return [];
+  }
+
+  return [...root.querySelectorAll<LiveRegion>("[data-live-region][data-live-src]")];
 }
 
 function focusedWithin(region: LiveRegion): boolean {

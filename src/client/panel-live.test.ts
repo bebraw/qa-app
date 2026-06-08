@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { bindQuestionValidation, bindSubmitOnEnter, refreshRegion, startLiveUpdates } from "./panel-live";
+import { bindLiveVoteForms, bindQuestionValidation, bindSubmitOnEnter, refreshRegion, startLiveUpdates } from "./panel-live";
 
 interface TestRegion extends HTMLElement {
   dataset: DOMStringMap & {
@@ -188,6 +188,127 @@ describe("panel live updates", () => {
     expect(region.innerHTML).toBe("<form>new</form>");
     expect(region.querySelectorAll).toHaveBeenCalledWith("textarea[data-submit-on-enter]");
     expect(textarea.addEventListener).toHaveBeenCalledWith("keydown", expect.any(Function));
+  });
+
+  it("posts live vote forms and refreshes live regions without navigation", async () => {
+    let submitListener: EventListener | undefined;
+    const region = createRegion("/questions/live", "old");
+
+    class TestForm {
+      readonly method = "post";
+      readonly action = "/";
+      submit = vi.fn();
+
+      addEventListener(event: string, listener: EventListener): void {
+        if (event === "submit") {
+          submitListener = listener;
+        }
+      }
+
+      getAttribute(name: string): string | null {
+        return name === "action" ? "/" : null;
+      }
+    }
+
+    class TestFormData {
+      constructor(readonly form: TestForm) {}
+    }
+
+    const form = new TestForm();
+    const root = {
+      querySelectorAll: vi.fn<ParentNode["querySelectorAll"]>(() => [form] as unknown as NodeListOf<Element>),
+    } as unknown as ParentNode;
+    const document = {
+      activeElement: {},
+      hidden: false,
+      querySelectorAll: vi.fn<ParentNode["querySelectorAll"]>(() => [region] as unknown as NodeListOf<Element>),
+    };
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(new Response("")).mockResolvedValueOnce(new Response("new votes"));
+
+    vi.stubGlobal("HTMLFormElement", TestForm);
+    vi.stubGlobal("FormData", TestFormData);
+    vi.stubGlobal("fetch", fetch);
+    vi.stubGlobal("document", document);
+
+    bindLiveVoteForms(root);
+
+    expect(root.querySelectorAll).toHaveBeenCalledWith("form[data-live-vote-form]");
+    expect(submitListener).toEqual(expect.any(Function));
+
+    const preventDefault = vi.fn();
+    submitListener?.({
+      currentTarget: form,
+      preventDefault,
+    } as unknown as Event);
+
+    await vi.waitFor(() => {
+      expect(region.innerHTML).toBe("new votes");
+    });
+    expect(preventDefault).toHaveBeenCalled();
+    expect(fetch).toHaveBeenNthCalledWith(1, "/", {
+      method: "post",
+      body: expect.any(TestFormData),
+      credentials: "same-origin",
+      headers: { accept: "text/html" },
+      cache: "no-store",
+    });
+    expect(fetch).toHaveBeenNthCalledWith(2, "/questions/live", {
+      headers: { accept: "text/html" },
+      cache: "no-store",
+    });
+    expect(form.submit).not.toHaveBeenCalled();
+  });
+
+  it("falls back to normal vote form submission when live voting fails", async () => {
+    let submitListener: EventListener | undefined;
+
+    class TestForm {
+      readonly method = "post";
+      readonly action = "/";
+      submit = vi.fn();
+
+      addEventListener(_event: string, listener: EventListener): void {
+        submitListener = listener;
+      }
+
+      getAttribute(name: string): string | null {
+        return name === "action" ? "/" : null;
+      }
+    }
+
+    class TestFormData {
+      constructor(readonly form: TestForm) {}
+    }
+
+    const form = new TestForm();
+    const root = {
+      querySelectorAll: vi.fn<ParentNode["querySelectorAll"]>(() => [form] as unknown as NodeListOf<Element>),
+    } as unknown as ParentNode;
+    const document = {
+      querySelectorAll: vi.fn<ParentNode["querySelectorAll"]>(() => [] as unknown as NodeListOf<Element>),
+    };
+
+    vi.stubGlobal("HTMLFormElement", TestForm);
+    vi.stubGlobal("FormData", TestFormData);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof globalThis.fetch>(async () => new Response("", { status: 500 })),
+    );
+    vi.stubGlobal("document", document);
+
+    bindLiveVoteForms(root);
+
+    const preventDefault = vi.fn();
+    submitListener?.({
+      currentTarget: form,
+      preventDefault,
+    } as unknown as Event);
+
+    await vi.waitFor(() => {
+      expect(form.submit).toHaveBeenCalledTimes(1);
+    });
+    expect(preventDefault).toHaveBeenCalled();
+    expect(document.querySelectorAll).not.toHaveBeenCalled();
   });
 
   it("shows a local notice instead of submitting too-short questions", () => {

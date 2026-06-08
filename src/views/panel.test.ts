@@ -71,12 +71,14 @@ describe("panel views", () => {
     expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).toContain('action="/"');
     expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).not.toContain('action="/vote"');
     expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).not.toContain('action="/moderate/vote"');
+    expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).toContain('data-live-vote-form="true"');
     expect(
       renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord], wordPrompt: "What should we cover next?" }),
     ).toContain("What should we cover next?");
     expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain("Readable");
     expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain("font-size:");
     expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain('name="word"');
+    expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain('data-live-vote-form="true"');
     expect(
       renderAudiencePage({ mode: "qa", questions: [{ ...availableQuestion, submittedByCurrentUser: true }], words: [] }),
     ).not.toContain(">+1</button>");
@@ -159,6 +161,7 @@ describe("panel views", () => {
     expect(moderatorHtml).toContain('name="mode" value="qa"');
     expect(moderatorHtml).toContain('name="mode" value="wordcloud"');
     expect(moderatorHtml).toContain('action="/moderate/vote"');
+    expect(moderatorHtml).toContain('data-live-vote-form="true"');
     expect(moderatorHtml).toContain('action="/moderate"');
     expect(moderatorHtml).toContain("Add moderator question");
     expect(moderatorHtml).toContain('<summary class="inline-flex h-10 cursor-pointer');
