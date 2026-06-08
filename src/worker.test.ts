@@ -179,6 +179,15 @@ describe("worker", () => {
       }),
       env,
     );
+    const promptResponse = await handleRequest(
+      new Request("http://example.com/moderate/words/prompt", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", cookie: moderatorCookie },
+        body: new URLSearchParams({ prompt: "Which topic should we cover next?" }),
+      }),
+      env,
+    );
+    expect(promptResponse.headers.get("location")).toContain("Word+question+set");
     const firstResponse = await handleRequest(
       new Request("http://example.com/", {
         method: "POST",
@@ -225,7 +234,11 @@ describe("worker", () => {
     const wordHtml = await wordPage.text();
     const attendeeCookie = cookieHeaderFromResponse(wordPage);
     expect(wordHtml).toContain("Great!");
+    expect(wordHtml).toContain("Which topic should we cover next?");
     expect(wordHtml).toContain('aria-label="Vote for Great!, 2 votes"');
+    await expect(handleRequest(new Request("http://example.com/live")).then((response) => response.text())).resolves.toContain(
+      "Which topic should we cover next?",
+    );
     await expect(handleRequest(new Request("http://example.com/live")).then((response) => response.text())).resolves.toContain(
       'aria-label="Vote for Great!, 2 votes"',
     );
@@ -236,6 +249,9 @@ describe("worker", () => {
     ).resolves.toContain("Great!");
     await expect(handleRequest(new Request("http://example.com/words/screen/live")).then((response) => response.text())).resolves.toContain(
       "Great!",
+    );
+    await expect(handleRequest(new Request("http://example.com/words/screen/live")).then((response) => response.text())).resolves.toContain(
+      "Which topic should we cover next?",
     );
 
     await handleRequest(

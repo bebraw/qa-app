@@ -6,6 +6,7 @@ interface AudienceViewModel {
   readonly mode: PanelMode;
   readonly questions: PublicQuestion[];
   readonly words: PublicWord[];
+  readonly wordPrompt?: string | undefined;
   readonly notice?: string | undefined;
 }
 
@@ -50,6 +51,7 @@ export function renderAudienceModeContent(view: AudienceViewModel): string {
   if (view.mode === "wordcloud") {
     return `${header("Words")}
       ${notice(view.notice)}
+      ${wordPrompt(view.wordPrompt)}
       ${wordForm("/", "Add word", "Word", "Send")}
       <section aria-label="Approved words">
         ${renderAudienceWordsContent(view.words)}
@@ -73,6 +75,7 @@ export function renderPresentModeFragment(view: AudienceViewModel): string {
 export function renderPresentModeContent(view: AudienceViewModel): string {
   if (view.mode === "wordcloud") {
     return `${header("Words")}
+      ${wordPrompt(view.wordPrompt)}
       <section aria-label="Approved words">
         ${renderPresentWordsContent(view.words)}
       </section>`;
@@ -167,6 +170,7 @@ export function renderModeratorModeContent(view: RoleViewModel): string {
 
   if (view.mode === "wordcloud") {
     return `${modeSwitch(view.mode)}
+      ${wordPromptForm(view.wordPrompt)}
       ${renderModeratorWordsContent(view.words, view.wordCloudEnded)}
       ${resetForm}`;
   }
@@ -227,28 +231,32 @@ function modeButton(value: PanelMode, label: string, current: PanelMode): string
   </form>`;
 }
 
-export function renderWordScreenPage(words: PublicWord[]): string {
+export function renderWordScreenPage(words: PublicWord[], prompt = ""): string {
   return pageShell({
     title: `Word cloud - ${appName}`,
     bodyClass: "min-h-screen bg-black text-white",
     scriptPath: "/panel-live.js",
     body: `
       <main class="flex min-h-screen items-center justify-center px-8 py-10">
-        ${renderWordScreenFragment(words)}
+        ${renderWordScreenFragment(words, prompt)}
       </main>`,
   });
 }
 
-export function renderWordScreenFragment(words: PublicWord[]): string {
-  return `<section class="flex w-full items-center justify-center" aria-label="Word cloud screen" data-live-region="word-screen" data-live-src="/words/screen/live">
-    ${renderWordScreenContent(words)}
+export function renderWordScreenFragment(words: PublicWord[], prompt = ""): string {
+  return `<section class="flex w-full flex-col items-center justify-center gap-8" aria-label="Word cloud screen" data-live-region="word-screen" data-live-src="/words/screen/live">
+    ${renderWordScreenContent(words, prompt)}
   </section>`;
 }
 
-export function renderWordScreenContent(words: PublicWord[]): string {
-  return words.length === 0
-    ? `<p class="text-center text-3xl font-semibold text-white/78 sm:text-5xl">Waiting.</p>`
-    : wordCloud(words, "screen");
+export function renderWordScreenContent(words: PublicWord[], prompt = ""): string {
+  const promptHtml = wordScreenPrompt(prompt);
+  const content =
+    words.length === 0
+      ? `<p class="text-center text-3xl font-semibold text-white/78 sm:text-5xl">Waiting.</p>`
+      : wordCloud(words, "screen");
+
+  return `${promptHtml}${content}`;
 }
 
 export function renderScreenPage(question: PublicQuestion | undefined): string {
@@ -358,6 +366,26 @@ function wordForm(action: string, label: string, placeholder: string, button: st
     <input class="h-12 min-w-0 flex-1 rounded-md border border-app-line bg-white px-4 text-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35" id="word-text" name="word" maxlength="40" placeholder="${escapeHtml(placeholder)}" required>
     <button class="h-12 rounded-lg bg-app-text px-5 text-sm font-semibold uppercase tracking-[0.16em] text-white transition hover:bg-app-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/40" type="submit">${escapeHtml(button)}</button>
   </form>`;
+}
+
+function wordPromptForm(prompt: string | undefined): string {
+  return `<form class="flex gap-2 rounded-lg border border-app-line bg-app-surface p-3 shadow-panel" method="post" action="/moderate/words/prompt">
+    <label class="sr-only" for="word-prompt">Audience word question</label>
+    <input class="h-12 min-w-0 flex-1 rounded-md border border-app-line bg-white px-4 text-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35" id="word-prompt" name="prompt" maxlength="160" placeholder="Question for the audience" value="${escapeHtml(prompt ?? "")}">
+    <button class="h-12 rounded-lg bg-app-text px-5 text-sm font-semibold uppercase tracking-[0.16em] text-white transition hover:bg-app-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/40" type="submit">Set</button>
+  </form>`;
+}
+
+function wordPrompt(prompt: string | undefined): string {
+  return prompt
+    ? `<p class="text-balance rounded-lg border border-app-line bg-white px-5 py-4 text-2xl font-semibold leading-8 shadow-panel">${escapeHtml(prompt)}</p>`
+    : "";
+}
+
+function wordScreenPrompt(prompt: string): string {
+  return prompt
+    ? `<p class="max-w-5xl text-balance text-center text-4xl font-semibold leading-tight text-white sm:text-6xl">${escapeHtml(prompt)}</p>`
+    : "";
 }
 
 function questionCard(question: PublicQuestion, role: "attendee" | "present" | "mc" | "moderator"): string {

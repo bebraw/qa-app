@@ -19,6 +19,7 @@ import {
   endWordCloud,
   getActivePublicQuestion,
   getPanelMode,
+  getWordPrompt,
   hideQuestion,
   hideWord,
   isLoginRateLimited,
@@ -36,6 +37,7 @@ import {
   resetPanel,
   serializePanelState,
   setPanelMode,
+  setWordPrompt,
   submitWord,
   voteForQuestion,
   voteForWord,
@@ -222,6 +224,7 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
         mode: getPanelMode(),
         questions: listAudienceQuestions(attendee.id),
         words: listAudienceWords(attendee.id),
+        wordPrompt: getVisibleWordPrompt(),
         notice: url.searchParams.get("notice") ?? undefined,
       }),
       200,
@@ -235,6 +238,7 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
         mode: getPanelMode(),
         questions: listAudienceQuestions(attendee.id),
         words: listAudienceWords(attendee.id),
+        wordPrompt: getVisibleWordPrompt(),
       }),
     );
   }
@@ -249,6 +253,7 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
         mode: getPanelMode(),
         questions: listAudienceQuestions(""),
         words: listAudienceWords(""),
+        wordPrompt: getVisibleWordPrompt(),
       }),
     );
   }
@@ -259,6 +264,7 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
         mode: getPanelMode(),
         questions: listAudienceQuestions(""),
         words: listAudienceWords(""),
+        wordPrompt: getVisibleWordPrompt(),
       }),
     );
   }
@@ -270,6 +276,7 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
         mode: getPanelMode(),
         questions: listMcQuestions(attendee.id),
         words: listAudienceWords(attendee.id),
+        wordPrompt: getVisibleWordPrompt(),
         wordCloudEnded: wordCloudEnded(),
         auth,
         notice: url.searchParams.get("notice") ?? undefined,
@@ -297,6 +304,7 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
         mode: getPanelMode(),
         questions: listModeratorQuestions(attendee.id),
         words: listModeratorWords(attendee.id),
+        wordPrompt: getWordPrompt(),
         wordCloudEnded: wordCloudEnded(),
         auth,
         notice: url.searchParams.get("notice") ?? undefined,
@@ -318,6 +326,7 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
         mode: getPanelMode(),
         questions: listModeratorQuestions(attendee.id),
         words: listModeratorWords(attendee.id),
+        wordPrompt: getWordPrompt(),
         wordCloudEnded: wordCloudEnded(),
         auth,
       }),
@@ -353,11 +362,11 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
   }
 
   if (url.pathname === "/words/screen") {
-    return htmlResponse(renderWordScreenPage(listScreenWords()));
+    return htmlResponse(renderWordScreenPage(listScreenWords(), getVisibleWordPrompt()));
   }
 
   if (url.pathname === "/words/screen/live") {
-    return htmlResponse(renderWordScreenContent(listScreenWords()));
+    return htmlResponse(renderWordScreenContent(listScreenWords(), getVisibleWordPrompt()));
   }
 
   if (url.pathname === "/api/health") {
@@ -566,6 +575,12 @@ async function handleModeratorAction(request: Request, env: PanelEnv, attendeeId
     return redirectResponse("/moderate", headers);
   }
 
+  if (url.pathname === "/moderate/words/prompt") {
+    const formData = await request.formData();
+    setWordPrompt(getFormValue(formData, "prompt"));
+    return redirectResponse(withNotice("/moderate", "Word question set."), headers);
+  }
+
   if (url.pathname === "/moderate/words/end") {
     endWordCloud();
     return redirectResponse(withNotice("/moderate", "Word cloud ended."), headers);
@@ -676,4 +691,8 @@ async function fetchPanelRoom(request: Request, namespace: PanelDurableObjectNam
 
 function readPanelMode(value: string): PanelMode {
   return value === "wordcloud" ? "wordcloud" : "qa";
+}
+
+function getVisibleWordPrompt(): string {
+  return wordCloudEnded() ? "" : getWordPrompt();
 }

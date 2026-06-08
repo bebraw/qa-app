@@ -4,14 +4,14 @@
 
 ### Context
 
-Future Frontend sessions need a low-budget replacement for hosted audience-question tools. Attendees should be able to ask questions, submit word-cloud words, and vote without sign-in, while the MC and moderator need protected views for approving, selecting, hiding, merging, ending, and resetting content during a conference panel.
+Future Frontend sessions need a low-budget replacement for hosted audience-question tools. Attendees should be able to ask questions, respond to a moderator-defined word-cloud prompt, submit word-cloud words, and vote without sign-in, while the MC and moderator need protected views for approving, selecting, hiding, merging, ending, and resetting content during a conference panel.
 
 The implementation should stay lightweight enough to run inside the existing Worker template without adding a client framework or third-party service.
 
 ### Architecture
 
 - **Entry points:** `src/worker.ts` routes panel requests and forwards panel state routes to the `PanelRoom` Durable Object when the `PANEL_ROOM` binding is available.
-- **State model:** `src/panel/state.ts` stores questions, word-cloud entries, votes, active selection, hidden status, done status, ended word-cloud status, and rate-limit buckets for the active room.
+- **State model:** `src/panel/state.ts` stores questions, word-cloud entries, word-cloud prompt text, votes, active selection, hidden status, done status, ended word-cloud status, and rate-limit buckets for the active room.
 - **Auth model:** `src/panel/auth.ts` signs separate MC and moderator role cookies with `AUTH_SECRET`; MC and moderator passcodes come from `MC_PASSCODE` and `MODERATOR_PASSCODE`.
 - **Views:** `src/views/panel.ts` renders server-side HTML for attendee, present, MC, moderator, and audience-screen views.
 - **Visual system:** Panel views use black-and-white UI tokens, the bundled Finlandica Headline font, and compact labels instead of explanatory helper text.
@@ -68,6 +68,8 @@ Options for stronger controls:
 - [ ] `GET /present` shows the active attendee-mode questions or approved words without forms or vote controls.
 - [ ] Moderator mode defaults to QA and can switch between QA and word-cloud mode without 404s.
 - [ ] `/moderate` shows question moderation only in QA mode and word-cloud moderation only in wordcloud mode.
+- [ ] Moderators can define a word-cloud audience question while in wordcloud mode.
+- [ ] The word-cloud audience question appears on attendee, present, and word-screen word-cloud views.
 - [ ] MC and moderator queues show new submissions and vote counts without a manual browser refresh.
 - [ ] The MC queue keeps polling while focus is inside its action area so newly approved questions still appear for the MC.
 - [ ] `GET /screen` shows only the currently active question selected by the MC.
@@ -92,6 +94,7 @@ Options for stronger controls:
 - GET requests must not change moderator-selected mode or any other panel state.
 - Word-cloud controls must not be visible in `/moderate` while the room is in QA mode.
 - Question moderation controls must not be visible in `/moderate` while the room is in wordcloud mode.
+- Word-cloud prompt changes must require moderator authentication and must be cleared by panel reset.
 - Hidden and done questions must not appear in the attendee queue.
 - Pending questions must not appear in other attendee queues, the MC queue, or the question screen.
 - Pending questions may appear only to the submitting attendee and must not be votable before approval.
@@ -111,7 +114,7 @@ Options for stronger controls:
 - The screen view must not show anything except the active question or an empty waiting state.
 - The panel UI must stay monochrome and use the local Finlandica font route instead of a remote font service.
 - Resetting the panel must clear all questions.
-- Resetting the panel must clear word-cloud entries and ended word-cloud state.
+- Resetting the panel must clear word-cloud entries, the word-cloud prompt, and ended word-cloud state.
 
 ### Verification
 
@@ -150,6 +153,12 @@ Options for stronger controls:
 - Given: a word-cloud entry already exists as pending or approved
 - When: another attendee submits the same normalized word
 - Then: the existing entry count increments without creating a separate approval item
+
+**Scenario: Moderator sets a word-cloud prompt**
+
+- Given: the moderator has switched the room to wordcloud mode
+- When: the moderator defines the audience question
+- Then: attendee, present, and word-screen word-cloud views show that question above the word submission or word cloud
 
 **Scenario: Attendee sees a pending word**
 

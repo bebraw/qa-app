@@ -71,6 +71,9 @@ describe("panel views", () => {
     expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).toContain('action="/"');
     expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).not.toContain('action="/vote"');
     expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).not.toContain('action="/moderate/vote"');
+    expect(
+      renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord], wordPrompt: "What should we cover next?" }),
+    ).toContain("What should we cover next?");
     expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain("Readable");
     expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain("font-size:");
     expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain('name="word"');
@@ -99,7 +102,7 @@ describe("panel views", () => {
 
   it("renders a read-only present view for the active attendee mode", () => {
     const questionHtml = renderPresentPage({ mode: "qa", questions: [availableQuestion], words: [] });
-    const wordHtml = renderPresentPage({ mode: "wordcloud", questions: [], words: [approvedWord] });
+    const wordHtml = renderPresentPage({ mode: "wordcloud", questions: [], words: [approvedWord], wordPrompt: "What feels most urgent?" });
 
     expect(questionHtml).toContain("<title>Present - Future Frontend Panels</title>");
     expect(questionHtml).toContain('<script src="/panel-live.js" type="module"></script>');
@@ -108,6 +111,7 @@ describe("panel views", () => {
     expect(questionHtml).not.toContain("<form");
     expect(questionHtml).not.toContain(">+1</button>");
     expect(wordHtml).toContain("Readable");
+    expect(wordHtml).toContain("What feels most urgent?");
     expect(wordHtml).toContain("font-size:");
     expect(wordHtml).not.toContain("<form");
     expect(wordHtml).not.toContain('name="wordId"');
@@ -132,6 +136,7 @@ describe("panel views", () => {
       mode: "wordcloud",
       questions: [availableQuestion],
       words: [approvedWord, pendingWord],
+      wordPrompt: "What word describes the platform?",
       wordCloudEnded: true,
       auth: { configured: true, role: "moderator" },
     });
@@ -162,6 +167,8 @@ describe("panel views", () => {
     expect(moderatorHtml).not.toContain('action="/moderate/words/approve"');
     expect(wordModeratorHtml).toContain('action="/moderate/words/approve"');
     expect(wordModeratorHtml).toContain('action="/moderate/words/merge"');
+    expect(wordModeratorHtml).toContain('action="/moderate/words/prompt"');
+    expect(wordModeratorHtml).toContain("What word describes the platform?");
     expect(wordModeratorHtml).toContain("Ended");
     expect(wordModeratorHtml).not.toContain("Add moderator question");
     expect(moderatorHtml).not.toContain("Stryker was here!");
@@ -201,7 +208,8 @@ describe("panel views", () => {
     ).not.toContain('name="wordId"');
     expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [pendingWord] })).toContain("Under consideration");
     expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [pendingWord] })).not.toContain('name="wordId"');
-    expect(renderWordScreenPage([approvedWord])).toContain("Readable");
+    expect(renderWordScreenPage([approvedWord], "What should we remember?")).toContain("Readable");
+    expect(renderWordScreenPage([approvedWord], "What should we remember?")).toContain("What should we remember?");
     expect(renderWordScreenPage([approvedWord])).toContain("min-h-[72vh]");
     expect(renderWordScreenPage([approvedWord])).toContain('data-live-src="/words/screen/live"');
     expect(renderWordScreenPage([approvedWord])).not.toContain('http-equiv="refresh"');

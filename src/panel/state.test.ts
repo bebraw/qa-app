@@ -8,9 +8,11 @@ import {
   endWordCloud,
   getActivePublicQuestion,
   getPanelMode,
+  getWordPrompt,
   hideQuestion,
   hideWord,
   isLoginRateLimited,
+  loadPanelState,
   listAudienceQuestions,
   listAudienceWords,
   listMcQuestions,
@@ -22,7 +24,9 @@ import {
   proposeQuestion,
   recordFailedLoginAttempt,
   resetPanel,
+  serializePanelState,
   setPanelMode,
+  setWordPrompt,
   submitWord,
   voteForQuestion,
   voteForWord,
@@ -304,6 +308,24 @@ describe("panel state", () => {
 
     resetPanel();
     expect(getPanelMode()).toBe("qa");
+  });
+
+  it("stores the moderator-defined word prompt with room state", () => {
+    setWordPrompt(`  ${"What should the panel discuss next? ".repeat(8)}  `);
+
+    expect(getWordPrompt().length).toBeLessThanOrEqual(160);
+    expect(getWordPrompt().startsWith(" ")).toBe(false);
+    expect(getWordPrompt()).not.toContain("  ");
+
+    const serialized = serializePanelState();
+    clearPanelStateForTests();
+    expect(getWordPrompt()).toBe("");
+
+    loadPanelState(serialized);
+    expect(getWordPrompt()).toBe(serialized.wordPrompt);
+
+    resetPanel();
+    expect(getWordPrompt()).toBe("");
   });
 
   it("keeps active questions first even when selected after another question", () => {

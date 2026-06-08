@@ -68,6 +68,7 @@ interface PanelStore {
   readonly words: Map<string, PanelWord>;
   readonly rateLimits: Map<string, RateLimitBucket>;
   mode: PanelMode;
+  wordPrompt: string;
   wordCloudEndedAt: number | undefined;
 }
 
@@ -94,6 +95,7 @@ interface SerializedWord {
 
 export interface SerializedPanelState {
   readonly mode?: PanelMode | undefined;
+  readonly wordPrompt?: string | undefined;
   readonly questions: SerializedQuestion[];
   readonly words: SerializedWord[];
   readonly rateLimits: ReadonlyArray<readonly [string, number[]]>;
@@ -105,6 +107,7 @@ const store: PanelStore = {
   words: new Map(),
   rateLimits: new Map(),
   mode: "qa",
+  wordPrompt: "",
   wordCloudEndedAt: undefined,
 };
 
@@ -114,6 +117,7 @@ const questionWindowMs = 60_000;
 const maximumVotes = 80;
 const voteWindowMs = 60_000;
 const maximumWordLength = 40;
+const maximumWordPromptLength = 160;
 const maximumWordSubmissions = 30;
 const wordWindowMs = 60_000;
 const maximumFailedLoginAttempts = 8;
@@ -400,6 +404,7 @@ export function resetPanel(): void {
   store.questions.clear();
   store.words.clear();
   store.mode = "qa";
+  store.wordPrompt = "";
   store.wordCloudEndedAt = undefined;
 }
 
@@ -409,6 +414,14 @@ export function getPanelMode(): PanelMode {
 
 export function setPanelMode(mode: PanelMode): void {
   store.mode = mode;
+}
+
+export function getWordPrompt(): string {
+  return store.wordPrompt;
+}
+
+export function setWordPrompt(prompt: string): void {
+  store.wordPrompt = normalizeWordPrompt(prompt);
 }
 
 export function listAudienceQuestions(clientId: string): PublicQuestion[] {
@@ -472,12 +485,14 @@ export function clearPanelStateForTests(): void {
   store.words.clear();
   store.rateLimits.clear();
   store.mode = "qa";
+  store.wordPrompt = "";
   store.wordCloudEndedAt = undefined;
 }
 
 export function serializePanelState(): SerializedPanelState {
   return {
     mode: store.mode,
+    wordPrompt: store.wordPrompt,
     questions: [...store.questions.values()].map((question) => ({
       ...question,
       voterIds: [...question.voterIds],
@@ -520,6 +535,7 @@ export function loadPanelState(state: SerializedPanelState | undefined): void {
   }
 
   store.mode = state.mode ?? "qa";
+  store.wordPrompt = normalizeWordPrompt(state.wordPrompt ?? "");
   store.wordCloudEndedAt = state.wordCloudEndedAt;
 }
 
@@ -533,6 +549,10 @@ function normalizeQuestion(text: string): string {
 
 function normalizeWordDisplay(text: string): string {
   return text.replaceAll(/\s+/g, " ").trim().slice(0, maximumWordLength);
+}
+
+function normalizeWordPrompt(text: string): string {
+  return text.replaceAll(/\s+/g, " ").trim().slice(0, maximumWordPromptLength).trim();
 }
 
 function normalizeWordKey(text: string): string {
