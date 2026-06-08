@@ -92,22 +92,42 @@ describe("panel live updates", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
-  it("keeps slow fallback polling when event streams are unavailable", async () => {
+  it("does not subscribe to events when event streams are unavailable", async () => {
+    const region = createRegion();
     const root = {
-      querySelectorAll: vi.fn<ParentNode["querySelectorAll"]>(() => [createRegion()] as unknown as NodeListOf<Element>),
+      querySelectorAll: vi.fn<ParentNode["querySelectorAll"]>(() => [region] as unknown as NodeListOf<Element>),
     } as unknown as ParentNode;
+    const fetch = vi.fn<typeof globalThis.fetch>(async () => new Response("initial"));
     const setInterval = vi.fn<typeof globalThis.setInterval>();
-    vi.stubGlobal(
-      "fetch",
-      vi.fn<typeof globalThis.fetch>(async () => new Response("new")),
-    );
+    vi.stubGlobal("fetch", fetch);
     vi.stubGlobal("setInterval", setInterval);
     vi.stubGlobal("document", { hidden: false });
     vi.stubGlobal("EventSource", undefined);
 
     startLiveUpdates(root);
 
-    expect(setInterval).toHaveBeenCalledWith(expect.any(Function), 30_000);
+    expect(setInterval).not.toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(region.innerHTML).toBe("initial");
+    });
+  });
+
+  it("does not open an event stream without live regions", () => {
+    const root = {
+      querySelectorAll: vi.fn<ParentNode["querySelectorAll"]>(() => [] as unknown as NodeListOf<Element>),
+    } as unknown as ParentNode;
+    const EventSource = vi.fn(function TestEventSource(this: EventSource) {
+      Object.assign(this, {
+        addEventListener: vi.fn(),
+      });
+    });
+    vi.stubGlobal("fetch", vi.fn<typeof globalThis.fetch>());
+    vi.stubGlobal("document", { hidden: false });
+    vi.stubGlobal("EventSource", EventSource);
+
+    startLiveUpdates(root);
+
+    expect(EventSource).not.toHaveBeenCalled();
   });
 
   it("skips hidden documents, missing sources, failed responses, and unchanged HTML", async () => {
@@ -544,31 +564,6 @@ describe("panel live updates", () => {
       cache: "no-store",
     });
     expect(region.innerHTML).toBe("new");
-  });
-
-  it("uses the fallback interval callback to refresh regions", async () => {
-    const region = createRegion();
-    const root = {
-      querySelectorAll: vi.fn<ParentNode["querySelectorAll"]>(() => [region] as unknown as NodeListOf<Element>),
-    } as unknown as ParentNode;
-    const fetch = vi.fn<typeof globalThis.fetch>(async () => new Response("interval"));
-    const setInterval = vi.fn<typeof globalThis.setInterval>();
-    vi.stubGlobal("fetch", fetch);
-    vi.stubGlobal("setInterval", setInterval);
-    vi.stubGlobal("document", { hidden: false });
-    vi.stubGlobal("EventSource", undefined);
-
-    startLiveUpdates(root);
-    const callback = setInterval.mock.calls[0]?.[0];
-    expect(callback).toEqual(expect.any(Function));
-    region.innerHTML = "old";
-    if (typeof callback === "function") {
-      callback();
-    }
-
-    await vi.waitFor(() => {
-      expect(region.innerHTML).toBe("interval");
-    });
   });
 
   it("submits question textareas on plain Enter and preserves modified Enter keys", () => {
