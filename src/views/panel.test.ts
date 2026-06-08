@@ -161,6 +161,8 @@ describe("panel views", () => {
     expect(moderatorHtml).toContain('action="/moderate/vote"');
     expect(moderatorHtml).toContain('action="/moderate"');
     expect(moderatorHtml).toContain("Add moderator question");
+    expect(moderatorHtml).toContain('<summary class="inline-flex h-10 cursor-pointer');
+    expect(moderatorHtml).toContain(">Edit</summary>");
     expect(moderatorHtml).toContain('action="/moderate/edit"');
     expect(moderatorHtml).toContain(">Save</button>");
     expect(moderatorHtml).toContain('action="/moderate/hide"');
