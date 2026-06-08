@@ -107,9 +107,11 @@ describe("panel views", () => {
     expect(questionHtml).toContain("<title>Present - Future Frontend Panels</title>");
     expect(questionHtml).toContain('<script src="/panel-live.js" type="module"></script>');
     expect(questionHtml).toContain('data-live-src="/present/live"');
+    expect(questionHtml).toContain('href="https://qa.futurefrontend.com">qa.futurefrontend.com</a>');
     expect(questionHtml).toContain("How do we keep frontend systems understandable?");
     expect(questionHtml).not.toContain("<form");
     expect(questionHtml).not.toContain(">+1</button>");
+    expect(wordHtml).toContain('href="https://qa.futurefrontend.com">qa.futurefrontend.com</a>');
     expect(wordHtml).toContain("Readable");
     expect(wordHtml).toContain("What feels most urgent?");
     expect(wordHtml).toContain("font-size:");

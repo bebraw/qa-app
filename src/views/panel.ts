@@ -74,14 +74,14 @@ export function renderPresentModeFragment(view: AudienceViewModel): string {
 
 export function renderPresentModeContent(view: AudienceViewModel): string {
   if (view.mode === "wordcloud") {
-    return `${header("Words")}
+    return `${presentHeader("Words")}
       ${wordPrompt(view.wordPrompt)}
       <section aria-label="Approved words">
         ${renderPresentWordsContent(view.words)}
       </section>`;
   }
 
-  return `${header("Questions")}
+  return `${presentHeader("Questions")}
     <section class="space-y-3" aria-label="Available questions">
       ${renderPresentQuestionsContent(view.questions)}
     </section>`;
@@ -337,6 +337,13 @@ function header(title: string): string {
   return `<header class="flex items-end justify-between gap-4 border-b border-app-line pb-4 pt-2">
     <h1 class="text-5xl font-semibold leading-none sm:text-6xl">${escapeHtml(title)}</h1>
     <a class="shrink-0 text-sm font-semibold uppercase tracking-[0.14em] text-app-text-soft hover:text-app-text" href="/">Future Frontend</a>
+  </header>`;
+}
+
+function presentHeader(title: string): string {
+  return `<header class="flex flex-col gap-3 border-b border-app-line pb-4 pt-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+    <h1 class="text-5xl font-semibold leading-none sm:text-6xl">${escapeHtml(title)}</h1>
+    <a class="shrink-0 text-sm font-semibold uppercase tracking-[0.14em] text-app-text-soft hover:text-app-text" href="https://qa.futurefrontend.com">qa.futurefrontend.com</a>
   </header>`;
 }
 
