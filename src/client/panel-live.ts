@@ -1,4 +1,4 @@
-const pollIntervalMs = 2_000;
+const fallbackPollIntervalMs = 30_000;
 const eventsPath = "/events";
 const panelStateEvent = "panel-state";
 const enterSubmitTextareas = new WeakSet<HTMLTextAreaElement>();
@@ -21,13 +21,22 @@ export function startLiveUpdates(root: ParentNode = document): void {
 
   const regions = [...root.querySelectorAll<LiveRegion>("[data-live-region][data-live-src]")];
 
-  subscribeToPanelEvents(regions);
+  const eventStreamAvailable = subscribeToPanelEvents(regions);
 
   for (const region of regions) {
     void refreshRegion(region);
+  }
+
+  if (!eventStreamAvailable) {
+    startFallbackPolling(regions);
+  }
+}
+
+function startFallbackPolling(regions: readonly LiveRegion[]): void {
+  for (const region of regions) {
     globalThis.setInterval(() => {
       void refreshRegion(region);
-    }, pollIntervalMs);
+    }, fallbackPollIntervalMs);
   }
 }
 
@@ -211,15 +220,17 @@ if (typeof document !== "undefined") {
   startLiveUpdates();
 }
 
-function subscribeToPanelEvents(regions: readonly LiveRegion[]): void {
+function subscribeToPanelEvents(regions: readonly LiveRegion[]): boolean {
   if (regions.length === 0 || typeof EventSource === "undefined") {
-    return;
+    return false;
   }
 
   const events = new EventSource(eventsPath);
   events.addEventListener(panelStateEvent, () => {
     refreshRegions(regions);
   });
+
+  return true;
 }
 
 function refreshRegions(regions: readonly LiveRegion[], options: { readonly forceFocused?: boolean } = {}): void {

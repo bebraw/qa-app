@@ -15,7 +15,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 - **Auth model:** `src/panel/auth.ts` signs separate MC and moderator role cookies with `AUTH_SECRET`; MC and moderator passcodes come from `MC_PASSCODE` and `MODERATOR_PASSCODE`.
 - **Views:** `src/views/panel.ts` renders server-side HTML for attendee, present, MC, moderator, and audience-screen views.
 - **Visual system:** Panel views use black-and-white UI tokens, the bundled Finlandica Headline font, and compact labels instead of explanatory helper text.
-- **Client behavior:** Regular attendee interaction stays rooted at `/`: asking questions, submitting words, and voting all post back to `/` and redirect back to `/`. Selected low-risk action forms are progressively enhanced by `/panel-live.js` through `data-live-action-form` so they submit with `fetch` and refresh live fragments without a full page navigation while keeping normal POST fallbacks. The `/present` view mirrors the active attendee mode without write controls and keeps `qa.futurefrontend.com` visible so the audience can find the attendee view. MC and moderator forms post to their role-specific routes, including moderator question edits through `/moderate/edit`. Attendee, present, MC, moderator, question-screen, and word-screen views also load the typed `/panel-live.js` module, which subscribes to Durable Object server-sent events from `/events` and refreshes HTML fragments immediately after room state changes. The module keeps interval polling as a fallback so already-open pages still update if the event stream is unavailable.
+- **Client behavior:** Regular attendee interaction stays rooted at `/`: asking questions, submitting words, and voting all post back to `/` and redirect back to `/`. Selected low-risk action forms are progressively enhanced by `/panel-live.js` through `data-live-action-form` so they submit with `fetch` and refresh live fragments without a full page navigation while keeping normal POST fallbacks. The `/present` view mirrors the active attendee mode without write controls and keeps `qa.futurefrontend.com` visible so the audience can find the attendee view. MC and moderator forms post to their role-specific routes, including moderator question edits through `/moderate/edit`. Attendee, present, MC, moderator, question-screen, and word-screen views also load the typed `/panel-live.js` module, which subscribes to Durable Object server-sent events from `/events` and refreshes HTML fragments immediately after room state changes. The module performs one initial live-fragment refresh on page load and uses slow interval polling only when the browser does not support event streams.
 - **Mode model:** The shared room defaults to QA mode. Moderator mode actions must use authenticated POST requests to `/moderate/mode` with `qa` or `wordcloud`; missing or invalid mode values fall back to QA.
 - **Persistence:** Panel state is coordinated through a SQLite-backed Cloudflare Durable Object room so attendees, MC, moderator, and screen views share one authoritative state across Worker isolates. Ended word-cloud data remains visible to the moderator until reset for lightweight analytics review.
 - **Rate limiting:** Question and word creation are throttled by Cloudflare client IP when `cf-connecting-ip` is present and by a shared local fallback otherwise. Vote submissions are also throttled by that client IP key, and each anonymous attendee cookie can vote once per question or approved word. Failed MC and moderator login attempts are throttled by role and client IP.
@@ -74,7 +74,7 @@ Options for stronger controls:
 - [ ] Moderators can edit question text without changing question status or vote counts.
 - [ ] The word-cloud audience question appears on attendee, present, and word-screen word-cloud views.
 - [ ] MC and moderator queues show new submissions and vote counts without a manual browser refresh.
-- [ ] The MC queue keeps polling while focus is inside its action area so newly approved questions still appear for the MC.
+- [ ] The MC queue keeps receiving live updates while focus is inside its action area so newly approved questions still appear for the MC.
 - [ ] `GET /screen` shows only the currently active question selected by the MC.
 - [ ] Already-open question screens update without a manual browser refresh when the MC selects or clears the active question.
 - [ ] `GET /words/screen` shows only approved word-cloud entries while the word cloud is open.
@@ -141,7 +141,7 @@ Options for stronger controls:
 
 - Given: an attendee question is pending
 - When: the moderator approves it
-- Then: the question appears in attendee queues, including already-open attendee pages after the live poll updates
+- Then: the question appears in attendee queues, including already-open attendee pages after the live update path refreshes
 
 **Scenario: Attendee submits a short question**
 
@@ -177,7 +177,7 @@ Options for stronger controls:
 
 - Given: a word-cloud entry is pending
 - When: the moderator approves it
-- Then: the word appears in the attendee root word-cloud view and on the word screen, including already-open pages after the live poll updates
+- Then: the word appears in the attendee root word-cloud view and on the word screen, including already-open pages after the live update path refreshes
 
 **Scenario: Moderator merges word variants**
 
