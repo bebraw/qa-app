@@ -6,6 +6,7 @@ import {
   clearPanelStateForTests,
   approveWord,
   endWordCloud,
+  editQuestion,
   getActivePublicQuestion,
   getPanelMode,
   getWordPrompt,
@@ -298,6 +299,37 @@ describe("panel state", () => {
     expect(approveQuestion(question?.id ?? "")).toBe(false);
     expect(listAudienceQuestions("attendee-2").map((entry) => entry.status)).toEqual(["available"]);
     expect(listAudienceQuestions("attendee-1").map((entry) => [entry.status, entry.submittedByCurrentUser])).toEqual([["available", true]]);
+  });
+
+  it("lets moderators edit question text without changing status or votes", () => {
+    const question = proposeQuestion({
+      text: "Which architecture topic should be edited?",
+      role: "moderator",
+      clientId: "moderator-1",
+      ipAddress: "198.51.100.1",
+      now: 1,
+    }).question;
+
+    expect(voteForQuestion({ id: question?.id ?? "", clientId: "attendee-1", ipAddress: "198.51.100.2", now: 2 })).toBe(true);
+    expect(chooseActiveQuestion(question?.id ?? "")).toBe(true);
+    expect(editQuestion(question?.id ?? "", "  Which edited architecture topic should be asked?  ")).toMatchObject({
+      ok: true,
+      message: "Question updated.",
+    });
+
+    expect(getActivePublicQuestion()).toMatchObject({
+      text: "Which edited architecture topic should be asked?",
+      status: "active",
+      votes: 1,
+    });
+    expect(editQuestion(question?.id ?? "", "why")).toEqual({ ok: false, message: "Question is too short." });
+    expect(editQuestion("missing", "Which missing question should fail?")).toEqual({ ok: false, message: "Question not found." });
+
+    expect(markActiveQuestionDone()).toBe(true);
+    expect(editQuestion(question?.id ?? "", "Which done question should not update?")).toEqual({
+      ok: false,
+      message: "Question not found.",
+    });
   });
 
   it("tracks the active panel mode and resets it for the next panel", () => {

@@ -17,6 +17,7 @@ import {
   chooseActiveQuestion,
   clearFailedLoginAttempts,
   endWordCloud,
+  editQuestion,
   getActivePublicQuestion,
   getPanelMode,
   getWordPrompt,
@@ -539,6 +540,12 @@ async function handleModeratorAction(request: Request, env: PanelEnv, attendeeId
     const formData = await request.formData();
     approveQuestion(getFormValue(formData, "questionId"));
     return redirectResponse("/moderate", headers);
+  }
+
+  if (url.pathname === "/moderate/edit") {
+    const formData = await request.formData();
+    const result = editQuestion(getFormValue(formData, "questionId"), getFormValue(formData, "question"));
+    return redirectResponse(withNotice("/moderate", result.message), headers);
   }
 
   if (url.pathname === "/moderate/mode") {

@@ -4,7 +4,7 @@
 
 ### Context
 
-Future Frontend sessions need a low-budget replacement for hosted audience-question tools. Attendees should be able to ask questions, respond to a moderator-defined word-cloud prompt, submit word-cloud words, and vote without sign-in, while the MC and moderator need protected views for approving, selecting, hiding, merging, ending, and resetting content during a conference panel.
+Future Frontend sessions need a low-budget replacement for hosted audience-question tools. Attendees should be able to ask questions, respond to a moderator-defined word-cloud prompt, submit word-cloud words, and vote without sign-in, while the MC and moderator need protected views for approving, editing, selecting, hiding, merging, ending, and resetting content during a conference panel.
 
 The implementation should stay lightweight enough to run inside the existing Worker template without adding a client framework or third-party service.
 
@@ -15,7 +15,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 - **Auth model:** `src/panel/auth.ts` signs separate MC and moderator role cookies with `AUTH_SECRET`; MC and moderator passcodes come from `MC_PASSCODE` and `MODERATOR_PASSCODE`.
 - **Views:** `src/views/panel.ts` renders server-side HTML for attendee, present, MC, moderator, and audience-screen views.
 - **Visual system:** Panel views use black-and-white UI tokens, the bundled Finlandica Headline font, and compact labels instead of explanatory helper text.
-- **Client behavior:** Regular attendee interaction stays rooted at `/`: asking questions, submitting words, and voting all post back to `/` and redirect back to `/`. The `/present` view mirrors the active attendee mode without write controls and keeps `qa.futurefrontend.com` visible so the audience can find the attendee view. MC and moderator forms post to their role-specific routes. Attendee, present, MC, moderator, question-screen, and word-screen views also load the typed `/panel-live.js` module, which subscribes to Durable Object server-sent events from `/events` and refreshes HTML fragments immediately after room state changes. The module keeps interval polling as a fallback so already-open pages still update if the event stream is unavailable.
+- **Client behavior:** Regular attendee interaction stays rooted at `/`: asking questions, submitting words, and voting all post back to `/` and redirect back to `/`. The `/present` view mirrors the active attendee mode without write controls and keeps `qa.futurefrontend.com` visible so the audience can find the attendee view. MC and moderator forms post to their role-specific routes, including moderator question edits through `/moderate/edit`. Attendee, present, MC, moderator, question-screen, and word-screen views also load the typed `/panel-live.js` module, which subscribes to Durable Object server-sent events from `/events` and refreshes HTML fragments immediately after room state changes. The module keeps interval polling as a fallback so already-open pages still update if the event stream is unavailable.
 - **Mode model:** The shared room defaults to QA mode. Moderator mode actions must use authenticated POST requests to `/moderate/mode` with `qa` or `wordcloud`; missing or invalid mode values fall back to QA.
 - **Persistence:** Panel state is coordinated through a SQLite-backed Cloudflare Durable Object room so attendees, MC, moderator, and screen views share one authoritative state across Worker isolates. Ended word-cloud data remains visible to the moderator until reset for lightweight analytics review.
 - **Rate limiting:** Question and word creation are throttled by Cloudflare client IP when `cf-connecting-ip` is present and by a shared local fallback otherwise. Vote submissions are also throttled by that client IP key, and each anonymous attendee cookie can vote once per question or approved word. Failed MC and moderator login attempts are throttled by role and client IP.
@@ -64,12 +64,13 @@ Options for stronger controls:
 - [ ] Question creation is IP-throttled to reduce flooding.
 - [ ] Duplicate submitted words auto-increment the matching pending or approved word instead of creating another moderation item.
 - [ ] `GET /mc` requires the MC passcode and lets the MC select the active question or mark it done.
-- [ ] `GET /moderate` requires the moderator passcode and lets the moderator approve, add, vote on, hide, merge, end, and reset content.
+- [ ] `GET /moderate` requires the moderator passcode and lets the moderator approve, add, edit, vote on, hide, merge, end, and reset content.
 - [ ] `GET /present` shows the active attendee-mode questions or approved words without forms or vote controls.
 - [ ] `GET /present` shows a visible `qa.futurefrontend.com` link so attendees can find the submission view.
 - [ ] Moderator mode defaults to QA and can switch between QA and word-cloud mode without 404s.
 - [ ] `/moderate` shows question moderation only in QA mode and word-cloud moderation only in wordcloud mode.
 - [ ] Moderators can define a word-cloud audience question while in wordcloud mode.
+- [ ] Moderators can edit question text without changing question status or vote counts.
 - [ ] The word-cloud audience question appears on attendee, present, and word-screen word-cloud views.
 - [ ] MC and moderator queues show new submissions and vote counts without a manual browser refresh.
 - [ ] The MC queue keeps polling while focus is inside its action area so newly approved questions still appear for the MC.
@@ -95,6 +96,8 @@ Options for stronger controls:
 - GET requests must not change moderator-selected mode or any other panel state.
 - Word-cloud controls must not be visible in `/moderate` while the room is in QA mode.
 - Question moderation controls must not be visible in `/moderate` while the room is in wordcloud mode.
+- Moderator question edits must require moderator authentication and must preserve question status, submitter identity, and vote counts.
+- Editing the active question must update already-open attendee, present, MC, moderator, and question-screen views through the normal live-refresh path.
 - Word-cloud prompt changes must require moderator authentication and must be cleared by panel reset.
 - Hidden and done questions must not appear in the attendee queue.
 - Pending questions must not appear in other attendee queues, the MC queue, or the question screen.

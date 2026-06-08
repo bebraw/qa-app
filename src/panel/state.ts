@@ -230,6 +230,24 @@ export function approveQuestion(id: string): boolean {
   return true;
 }
 
+export function editQuestion(id: string, inputText: string): QuestionSubmissionResult {
+  const question = store.questions.get(id);
+  const text = normalizeQuestion(inputText);
+
+  if (!question || question.status === "done") {
+    return { ok: false, message: "Question not found." };
+  }
+
+  if (text.length < 8) {
+    return { ok: false, message: "Question is too short." };
+  }
+
+  const updatedQuestion = { ...question, text };
+  store.questions.set(id, updatedQuestion);
+
+  return { ok: true, message: "Question updated.", question: toPublicQuestion(updatedQuestion, "") };
+}
+
 export function submitWord(input: {
   readonly text: string;
   readonly clientId: string;

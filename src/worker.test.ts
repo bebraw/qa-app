@@ -645,6 +645,22 @@ describe("worker", () => {
       "Which standards are ready for production use?",
     );
 
+    const editResponse = await handleRequest(
+      new Request("http://example.com/moderate/edit", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", cookie: moderatorCookie },
+        body: new URLSearchParams({ questionId, question: "Which edited standards are ready for production use?" }),
+      }),
+      env,
+    );
+    expect(editResponse.headers.get("location")).toContain("Question+updated");
+    await expect(handleRequest(new Request("http://example.com/screen")).then((response) => response.text())).resolves.toContain(
+      "Which edited standards are ready for production use?",
+    );
+    await expect(handleRequest(new Request("http://example.com/")).then((response) => response.text())).resolves.toContain(
+      "Which edited standards are ready for production use?",
+    );
+
     const doneResponse = await handleRequest(
       new Request("http://example.com/mc/done", { method: "POST", headers: { cookie: mcCookie } }),
       env,

@@ -418,10 +418,20 @@ function questionCard(question: PublicQuestion, role: "attendee" | "present" | "
         <span class="text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-app-text-soft">votes</span>
       </div>
     </div>
+    ${role === "moderator" ? questionEditForm(question) : ""}
     <div class="mt-4 flex flex-wrap items-center gap-2">
       ${activeLabel}${pendingLabel}${hiddenLabel}${actions(question, role)}
     </div>
   </article>`;
+}
+
+function questionEditForm(question: PublicQuestion): string {
+  return `<form class="mt-4 flex flex-col gap-2" method="post" action="/moderate/edit">
+    <input type="hidden" name="questionId" value="${escapeHtml(question.id)}">
+    <label class="sr-only" for="edit-question-${escapeHtml(question.id)}">Edit question</label>
+    <textarea class="min-h-20 w-full resize-y rounded-md border border-app-line bg-white px-3 py-2 text-base leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35" id="edit-question-${escapeHtml(question.id)}" name="question" maxlength="220" required>${escapeHtml(question.text)}</textarea>
+    <button class="h-10 self-start rounded-lg border border-app-line bg-white px-4 text-sm font-semibold text-app-text-soft transition hover:text-app-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35" type="submit">Save</button>
+  </form>`;
 }
 
 function wordPill(word: PublicWord, role: "attendee" | "moderator"): string {
