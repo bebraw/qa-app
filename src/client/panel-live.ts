@@ -3,7 +3,7 @@ const eventsPath = "/events";
 const panelStateEvent = "panel-state";
 const enterSubmitTextareas = new WeakSet<HTMLTextAreaElement>();
 const validatedQuestionForms = new WeakSet<HTMLFormElement>();
-const liveVoteForms = new WeakSet<HTMLFormElement>();
+const liveActionForms = new WeakSet<HTMLFormElement>();
 const liveNoticeClass = "rounded-lg border border-app-line bg-white px-4 py-3 text-sm font-semibold text-app-text-soft shadow-panel";
 
 interface LiveRegion extends HTMLElement {
@@ -16,7 +16,7 @@ interface LiveRegion extends HTMLElement {
 export function startLiveUpdates(root: ParentNode = document): void {
   bindSubmitOnEnter(root);
   bindQuestionValidation(root);
-  bindLiveVoteForms(root);
+  bindLiveActionForms(root);
 
   const regions = [...root.querySelectorAll<LiveRegion>("[data-live-region][data-live-src]")];
 
@@ -70,7 +70,7 @@ export async function refreshRegion(region: LiveRegion, options: { readonly forc
     region.innerHTML = nextHtml;
     bindSubmitOnEnter(region);
     bindQuestionValidation(region);
-    bindLiveVoteForms(region);
+    bindLiveActionForms(region);
   }
 }
 
@@ -91,20 +91,20 @@ export function bindQuestionValidation(root: ParentNode = document): void {
   }
 }
 
-export function bindLiveVoteForms(root: ParentNode = document): void {
+export function bindLiveActionForms(root: ParentNode = document): void {
   if (typeof root.querySelectorAll !== "function") {
     return;
   }
 
-  const forms = [...root.querySelectorAll<HTMLFormElement>("form[data-live-vote-form]")];
+  const forms = [...root.querySelectorAll<HTMLFormElement>("form[data-live-action-form]")];
 
   for (const form of forms) {
-    if (typeof form.addEventListener !== "function" || liveVoteForms.has(form)) {
+    if (typeof form.addEventListener !== "function" || liveActionForms.has(form)) {
       continue;
     }
 
-    form.addEventListener("submit", submitLiveVoteForm);
-    liveVoteForms.add(form);
+    form.addEventListener("submit", submitLiveActionForm);
+    liveActionForms.add(form);
   }
 }
 
@@ -227,7 +227,7 @@ function refreshRegions(regions: readonly LiveRegion[], options: { readonly forc
   }
 }
 
-async function submitLiveVoteForm(event: SubmitEvent): Promise<void> {
+async function submitLiveActionForm(event: SubmitEvent): Promise<void> {
   const target = event.currentTarget;
 
   if (typeof HTMLFormElement === "undefined" || typeof FormData === "undefined" || !(target instanceof HTMLFormElement)) {

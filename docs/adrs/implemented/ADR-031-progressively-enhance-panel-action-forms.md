@@ -1,6 +1,6 @@
 # ADR-031: Progressively Enhance Panel Action Forms
 
-**Status:** Proposed
+**Status:** Implemented
 
 **Date:** 2026-06-08
 
@@ -16,7 +16,7 @@ The app should preserve the lightweight template shape: no client framework, no 
 
 We will generalize live action handling from vote-only forms to selected server-rendered action forms.
 
-The client module will support a reusable marker such as `data-live-action-form`. Forms with that marker will:
+The client module supports the reusable `data-live-action-form` marker. Forms with that marker:
 
 - remain normal POST forms for no-JS and failed-fetch fallbacks
 - submit with `fetch` when JavaScript is available
@@ -24,7 +24,7 @@ The client module will support a reusable marker such as `data-live-action-form`
 - force-refresh the local focused region when the action affects the currently focused queue
 - fall back to `form.submit()` when the request fails or returns an unexpected status
 
-Only low-risk operational actions should use the marker by default:
+Only low-risk operational actions use the marker by default:
 
 - attendee question and word votes
 - moderator question approve and hide

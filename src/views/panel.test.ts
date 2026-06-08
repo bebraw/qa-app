@@ -71,14 +71,14 @@ describe("panel views", () => {
     expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).toContain('action="/"');
     expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).not.toContain('action="/vote"');
     expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).not.toContain('action="/moderate/vote"');
-    expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).toContain('data-live-vote-form="true"');
+    expect(renderAudiencePage({ mode: "qa", questions: [availableQuestion], words: [] })).toContain('data-live-action-form="true"');
     expect(
       renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord], wordPrompt: "What should we cover next?" }),
     ).toContain("What should we cover next?");
     expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain("Readable");
     expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain("font-size:");
     expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain('name="word"');
-    expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain('data-live-vote-form="true"');
+    expect(renderAudiencePage({ mode: "wordcloud", questions: [], words: [approvedWord] })).toContain('data-live-action-form="true"');
     expect(
       renderAudiencePage({ mode: "qa", questions: [{ ...availableQuestion, submittedByCurrentUser: true }], words: [] }),
     ).not.toContain(">+1</button>");
@@ -147,6 +147,8 @@ describe("panel views", () => {
 
     expect(mcHtml).toContain('action="/mc/select"');
     expect(mcHtml).toContain('action="/mc/done"');
+    expect(mcHtml).toContain('action="/mc/select" data-live-action-form="true"');
+    expect(mcHtml).toContain('action="/mc/done" data-live-action-form="true"');
     expect(mcHtml).toContain('<script src="/panel-live.js" type="module"></script>');
     expect(mcHtml).toContain('data-live-src="/mc/live"');
     expect(mcHtml).toContain('data-live-refresh-when-focused="true"');
@@ -161,22 +163,29 @@ describe("panel views", () => {
     expect(moderatorHtml).toContain('name="mode" value="qa"');
     expect(moderatorHtml).toContain('name="mode" value="wordcloud"');
     expect(moderatorHtml).toContain('action="/moderate/vote"');
-    expect(moderatorHtml).toContain('data-live-vote-form="true"');
+    expect(moderatorHtml).toContain('action="/moderate/vote" data-live-action-form="true"');
+    expect(moderatorHtml).toContain('data-live-action-form="true"');
     expect(moderatorHtml).toContain('action="/moderate"');
     expect(moderatorHtml).toContain("Add moderator question");
     expect(moderatorHtml).toContain('<summary class="inline-flex h-10 cursor-pointer');
     expect(moderatorHtml).toContain(">Edit</summary>");
     expect(moderatorHtml).toContain('action="/moderate/edit"');
+    expect(moderatorHtml).toContain('action="/moderate/edit" data-live-action-form="true"');
     expect(moderatorHtml).toContain(">Save</button>");
     expect(moderatorHtml).toContain('action="/moderate/hide"');
+    expect(moderatorHtml).toContain('action="/moderate/hide" data-live-action-form="true"');
     expect(moderatorHtml).toContain(">Hide</button>");
     expect(moderatorHtml).toContain("border-app-line bg-white text-app-text-soft hover:text-app-text");
     expect(moderatorHtml).toContain("Hidden");
     expect(moderatorHtml).toContain(">Reset</button>");
+    expect(moderatorHtml).not.toContain('action="/moderate/reset" data-live-action-form="true"');
     expect(moderatorHtml).not.toContain('action="/moderate/words/approve"');
     expect(wordModeratorHtml).toContain('action="/moderate/words/approve"');
+    expect(wordModeratorHtml).toContain('action="/moderate/words/approve" data-live-action-form="true"');
     expect(wordModeratorHtml).toContain('action="/moderate/words/merge"');
+    expect(wordModeratorHtml).toContain('action="/moderate/words/merge" data-live-action-form="true"');
     expect(wordModeratorHtml).toContain('action="/moderate/words/prompt"');
+    expect(wordModeratorHtml).not.toContain('action="/moderate/words/prompt" data-live-action-form="true"');
     expect(wordModeratorHtml).toContain("What word describes the platform?");
     expect(wordModeratorHtml).toContain("Ended");
     expect(wordModeratorHtml).not.toContain("Add moderator question");

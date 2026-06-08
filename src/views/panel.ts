@@ -207,7 +207,7 @@ export function renderModeratorWordsContent(words: PublicWord[], ended: boolean)
       <h2 class="text-3xl font-semibold leading-none">Words</h2>
       ${ended ? `<span class="pb-1 text-sm font-semibold uppercase tracking-[0.14em] text-app-text-soft">Ended</span>` : ""}
     </div>
-    <form method="post" action="/moderate/words/end">
+    <form method="post" action="/moderate/words/end" data-live-action-form="true">
       <button class="h-10 rounded-lg border border-app-line bg-white px-4 text-sm font-semibold text-app-text-soft transition hover:text-app-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35" type="submit" ${ended ? "disabled" : ""}>End</button>
     </form>
   </div>
@@ -428,7 +428,7 @@ function questionCard(question: PublicQuestion, role: "attendee" | "present" | "
 function questionEditForm(question: PublicQuestion): string {
   return `<details class="mt-4">
     <summary class="inline-flex h-10 cursor-pointer list-none items-center rounded-lg border border-app-line bg-white px-4 text-sm font-semibold text-app-text-soft transition hover:text-app-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35">Edit</summary>
-    <form class="mt-3 flex flex-col gap-2" method="post" action="/moderate/edit">
+    <form class="mt-3 flex flex-col gap-2" method="post" action="/moderate/edit" data-live-action-form="true">
       <input type="hidden" name="questionId" value="${escapeHtml(question.id)}">
       <label class="sr-only" for="edit-question-${escapeHtml(question.id)}">Edit question</label>
       <textarea class="min-h-20 w-full resize-y rounded-md border border-app-line bg-white px-3 py-2 text-base leading-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35" id="edit-question-${escapeHtml(question.id)}" name="question" maxlength="220" required>${escapeHtml(question.text)}</textarea>
@@ -440,7 +440,7 @@ function questionEditForm(question: PublicQuestion): string {
 function wordPill(word: PublicWord, role: "attendee" | "moderator"): string {
   const voteButton = word.votedByCurrentUser
     ? `<button class="h-10 rounded-full border border-app-line bg-app-surface px-4 text-sm font-semibold text-app-text-soft" type="submit" disabled>${escapeHtml(word.text)} ${word.count}</button>`
-    : `<form method="post" action="${role === "moderator" ? "/moderate/words/vote" : "/"}" data-live-vote-form="true">
+    : `<form method="post" action="${role === "moderator" ? "/moderate/words/vote" : "/"}" data-live-action-form="true">
         <input type="hidden" name="wordId" value="${escapeHtml(word.id)}">
         <button class="h-10 rounded-full border border-app-line bg-white px-4 text-sm font-semibold text-app-text transition hover:bg-app-accent-ghost focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35" type="submit">${escapeHtml(word.text)} ${word.count}</button>
       </form>`;
@@ -485,7 +485,7 @@ function cloudWord(word: PublicWord, variant: "attendee" | "present" | "screen",
     return `<button class="${buttonClass} opacity-60" style="${style}" type="submit" aria-label="${escapeHtml(label)}" disabled>${escapeHtml(word.text)}${count}</button>`;
   }
 
-  return `<form class="inline-flex" method="post" action="/" data-live-vote-form="true">
+  return `<form class="inline-flex" method="post" action="/" data-live-action-form="true">
     <input type="hidden" name="wordId" value="${escapeHtml(word.id)}">
     <button class="${buttonClass}" style="${style}" type="submit" aria-label="${escapeHtml(label)}">${escapeHtml(word.text)}${count}</button>
   </form>`;
@@ -515,10 +515,10 @@ function moderatorWordRow(word: PublicWord): string {
       <span class="mr-auto text-xl font-semibold">${escapeHtml(word.text)}</span>
       <span class="text-sm font-semibold text-app-text-soft">${word.count}</span>
       ${status}
-      ${word.status === "pending" ? wordActionButton("/moderate/words/approve", word.id, "Approve", "bg-app-text text-white hover:bg-app-accent-strong") : wordPill(word, "moderator")}
-      ${wordActionButton("/moderate/words/hide", word.id, "Hide", "border-app-line bg-white text-app-text-soft hover:text-app-text")}
+      ${word.status === "pending" ? wordActionButton("/moderate/words/approve", word.id, "Approve", "bg-app-text text-white hover:bg-app-accent-strong", true) : wordPill(word, "moderator")}
+      ${wordActionButton("/moderate/words/hide", word.id, "Hide", "border-app-line bg-white text-app-text-soft hover:text-app-text", true)}
     </div>
-    <form class="mt-3 flex gap-2" method="post" action="/moderate/words/merge">
+    <form class="mt-3 flex gap-2" method="post" action="/moderate/words/merge" data-live-action-form="true">
       <input type="hidden" name="wordId" value="${escapeHtml(word.id)}">
       <input class="h-10 min-w-0 flex-1 rounded-md border border-app-line bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35" name="target" placeholder="Merge into">
       <button class="h-10 rounded-lg border border-app-line bg-white px-4 text-sm font-semibold text-app-text-soft transition hover:text-app-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35" type="submit">Merge</button>
@@ -547,7 +547,7 @@ function actions(question: PublicQuestion, role: "attendee" | "present" | "mc" |
         : "border-app-line bg-app-surface text-app-text-soft opacity-55";
 
     return `${actionButton("/mc/select", question.id, "Ask", "bg-app-text text-white hover:bg-app-accent-strong")}
-      <form method="post" action="/mc/done"><button class="h-10 rounded-lg border px-4 text-sm font-semibold ${doneButtonClass}" type="submit" ${question.status === "active" ? "" : "disabled"}>Mark as done</button></form>`;
+      <form method="post" action="/mc/done" data-live-action-form="true"><button class="h-10 rounded-lg border px-4 text-sm font-semibold ${doneButtonClass}" type="submit" ${question.status === "active" ? "" : "disabled"}>Mark as done</button></form>`;
   }
 
   const approveButton =
@@ -560,16 +560,16 @@ function actions(question: PublicQuestion, role: "attendee" | "present" | "mc" |
 }
 
 function actionButton(action: string, questionId: string, label: string, classes: string): string {
-  const liveVoteAttribute = action === "/" || action.endsWith("/vote") ? ` data-live-vote-form="true"` : "";
-
-  return `<form method="post" action="${escapeHtml(action)}"${liveVoteAttribute}>
+  return `<form method="post" action="${escapeHtml(action)}" data-live-action-form="true">
     <input type="hidden" name="questionId" value="${escapeHtml(questionId)}">
     <button class="h-10 rounded-lg border px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35 ${classes}" type="submit">${escapeHtml(label)}</button>
   </form>`;
 }
 
-function wordActionButton(action: string, wordId: string, label: string, classes: string): string {
-  return `<form method="post" action="${escapeHtml(action)}">
+function wordActionButton(action: string, wordId: string, label: string, classes: string, live = false): string {
+  const liveActionAttribute = live ? ` data-live-action-form="true"` : "";
+
+  return `<form method="post" action="${escapeHtml(action)}"${liveActionAttribute}>
     <input type="hidden" name="wordId" value="${escapeHtml(wordId)}">
     <button class="h-10 rounded-lg border px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent/35 ${classes}" type="submit">${escapeHtml(label)}</button>
   </form>`;

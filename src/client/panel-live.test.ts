@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { bindLiveVoteForms, bindQuestionValidation, bindSubmitOnEnter, refreshRegion, startLiveUpdates } from "./panel-live";
+import { bindLiveActionForms, bindQuestionValidation, bindSubmitOnEnter, refreshRegion, startLiveUpdates } from "./panel-live";
 
 interface TestRegion extends HTMLElement {
   dataset: DOMStringMap & {
@@ -169,13 +169,26 @@ describe("panel live updates", () => {
     expect(region.innerHTML).toBe('<p data-live-notice="true">Question is too short.</p><form>new</form>');
   });
 
-  it("binds Enter submission on textareas inserted by a live refresh", async () => {
+  it("binds inserted form behavior after a live refresh", async () => {
     const textarea = {
+      addEventListener: vi.fn(),
+    };
+    const actionForm = {
       addEventListener: vi.fn(),
     };
     const region = {
       ...createRegion("/live", "old"),
-      querySelectorAll: vi.fn((selector: string) => (selector === "textarea[data-submit-on-enter]" ? [textarea] : [])),
+      querySelectorAll: vi.fn((selector: string) => {
+        if (selector === "textarea[data-submit-on-enter]") {
+          return [textarea];
+        }
+
+        if (selector === "form[data-live-action-form]") {
+          return [actionForm];
+        }
+
+        return [];
+      }),
     } as unknown as TestRegion;
     vi.stubGlobal(
       "fetch",
@@ -188,9 +201,11 @@ describe("panel live updates", () => {
     expect(region.innerHTML).toBe("<form>new</form>");
     expect(region.querySelectorAll).toHaveBeenCalledWith("textarea[data-submit-on-enter]");
     expect(textarea.addEventListener).toHaveBeenCalledWith("keydown", expect.any(Function));
+    expect(region.querySelectorAll).toHaveBeenCalledWith("form[data-live-action-form]");
+    expect(actionForm.addEventListener).toHaveBeenCalledWith("submit", expect.any(Function));
   });
 
-  it("posts live vote forms and refreshes live regions without navigation", async () => {
+  it("posts live action forms and refreshes live regions without navigation", async () => {
     let submitListener: EventListener | undefined;
     const region = createRegion("/questions/live", "old");
 
@@ -230,9 +245,9 @@ describe("panel live updates", () => {
     vi.stubGlobal("fetch", fetch);
     vi.stubGlobal("document", document);
 
-    bindLiveVoteForms(root);
+    bindLiveActionForms(root);
 
-    expect(root.querySelectorAll).toHaveBeenCalledWith("form[data-live-vote-form]");
+    expect(root.querySelectorAll).toHaveBeenCalledWith("form[data-live-action-form]");
     expect(submitListener).toEqual(expect.any(Function));
 
     const preventDefault = vi.fn();
@@ -259,7 +274,7 @@ describe("panel live updates", () => {
     expect(form.submit).not.toHaveBeenCalled();
   });
 
-  it("falls back to normal vote form submission when live voting fails", async () => {
+  it("falls back to normal action form submission when live actions fail", async () => {
     let submitListener: EventListener | undefined;
 
     class TestForm {
@@ -296,7 +311,7 @@ describe("panel live updates", () => {
     );
     vi.stubGlobal("document", document);
 
-    bindLiveVoteForms(root);
+    bindLiveActionForms(root);
 
     const preventDefault = vi.fn();
     submitListener?.({

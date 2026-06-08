@@ -15,7 +15,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 - **Auth model:** `src/panel/auth.ts` signs separate MC and moderator role cookies with `AUTH_SECRET`; MC and moderator passcodes come from `MC_PASSCODE` and `MODERATOR_PASSCODE`.
 - **Views:** `src/views/panel.ts` renders server-side HTML for attendee, present, MC, moderator, and audience-screen views.
 - **Visual system:** Panel views use black-and-white UI tokens, the bundled Finlandica Headline font, and compact labels instead of explanatory helper text.
-- **Client behavior:** Regular attendee interaction stays rooted at `/`: asking questions, submitting words, and voting all post back to `/` and redirect back to `/`. Vote forms are progressively enhanced by `/panel-live.js` to submit with `fetch` and refresh live fragments without a full page navigation. The `/present` view mirrors the active attendee mode without write controls and keeps `qa.futurefrontend.com` visible so the audience can find the attendee view. MC and moderator forms post to their role-specific routes, including moderator question edits through `/moderate/edit`. Attendee, present, MC, moderator, question-screen, and word-screen views also load the typed `/panel-live.js` module, which subscribes to Durable Object server-sent events from `/events` and refreshes HTML fragments immediately after room state changes. The module keeps interval polling as a fallback so already-open pages still update if the event stream is unavailable.
+- **Client behavior:** Regular attendee interaction stays rooted at `/`: asking questions, submitting words, and voting all post back to `/` and redirect back to `/`. Selected low-risk action forms are progressively enhanced by `/panel-live.js` through `data-live-action-form` so they submit with `fetch` and refresh live fragments without a full page navigation while keeping normal POST fallbacks. The `/present` view mirrors the active attendee mode without write controls and keeps `qa.futurefrontend.com` visible so the audience can find the attendee view. MC and moderator forms post to their role-specific routes, including moderator question edits through `/moderate/edit`. Attendee, present, MC, moderator, question-screen, and word-screen views also load the typed `/panel-live.js` module, which subscribes to Durable Object server-sent events from `/events` and refreshes HTML fragments immediately after room state changes. The module keeps interval polling as a fallback so already-open pages still update if the event stream is unavailable.
 - **Mode model:** The shared room defaults to QA mode. Moderator mode actions must use authenticated POST requests to `/moderate/mode` with `qa` or `wordcloud`; missing or invalid mode values fall back to QA.
 - **Persistence:** Panel state is coordinated through a SQLite-backed Cloudflare Durable Object room so attendees, MC, moderator, and screen views share one authoritative state across Worker isolates. Ended word-cloud data remains visible to the moderator until reset for lightweight analytics review.
 - **Rate limiting:** Question and word creation are throttled by Cloudflare client IP when `cf-connecting-ip` is present and by a shared local fallback otherwise. Vote submissions are also throttled by that client IP key, and each anonymous attendee cookie can vote once per question or approved word. Failed MC and moderator login attempts are throttled by role and client IP.
@@ -59,7 +59,7 @@ Options for stronger controls:
 - [ ] Attendees can submit anonymous word-cloud words.
 - [ ] Attendees can see their own pending word-cloud words as under consideration while those words wait for moderator approval.
 - [ ] Attendees can vote once per question and can vote on multiple questions.
-- [ ] Enhanced vote submissions update the visible queue without a full page navigation while preserving server POST fallbacks.
+- [ ] Enhanced vote and operator action submissions update visible live regions without a full page navigation while preserving server POST fallbacks.
 - [ ] Attendees can vote once per approved word-cloud word and can vote on multiple words.
 - [ ] Approved word-cloud entries render as a centered word cloud where higher-count words are visually larger.
 - [ ] Question creation is IP-throttled to reduce flooding.
@@ -104,7 +104,7 @@ Options for stronger controls:
 - Pending questions must not appear in other attendee queues, the MC queue, or the question screen.
 - Pending questions may appear only to the submitting attendee and must not be votable before approval.
 - Attendees must not be able to vote for questions or word-cloud words they submitted.
-- Vote forms must remain normal POST forms so no-JS and failed-fetch fallback paths still work.
+- Enhanced action forms must remain normal POST forms so no-JS and failed-fetch fallback paths still work.
 - Approved questions must appear on already-open attendee question pages without a manual browser refresh.
 - Approved questions and words must appear on already-open present pages without a manual browser refresh.
 - Attendee notices, including short-question validation messages, must not be removed by the immediate live-fragment refresh that follows page load.
