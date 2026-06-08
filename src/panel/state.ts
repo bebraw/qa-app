@@ -102,14 +102,69 @@ export interface SerializedPanelState {
   readonly wordCloudEndedAt?: number | undefined;
 }
 
-const store: PanelStore = {
-  questions: new Map(),
-  words: new Map(),
-  rateLimits: new Map(),
-  mode: "qa",
-  wordPrompt: "",
-  wordCloudEndedAt: undefined,
-};
+export interface PanelStateApi {
+  readonly proposeQuestion: (input: {
+    readonly text: string;
+    readonly role: PanelRole;
+    readonly clientId: string;
+    readonly ipAddress: string;
+    readonly now?: number;
+  }) => QuestionSubmissionResult;
+  readonly isLoginRateLimited: (input: {
+    readonly role: Exclude<PanelRole, "attendee">;
+    readonly ipAddress: string;
+    readonly now?: number;
+  }) => boolean;
+  readonly recordFailedLoginAttempt: (input: {
+    readonly role: Exclude<PanelRole, "attendee">;
+    readonly ipAddress: string;
+    readonly now?: number;
+  }) => boolean;
+  readonly clearFailedLoginAttempts: (input: { readonly role: Exclude<PanelRole, "attendee">; readonly ipAddress: string }) => void;
+  readonly voteForQuestion: (input: {
+    readonly id: string;
+    readonly clientId: string;
+    readonly ipAddress: string;
+    readonly now?: number;
+  }) => boolean;
+  readonly approveQuestion: (id: string) => boolean;
+  readonly editQuestion: (id: string, inputText: string) => QuestionSubmissionResult;
+  readonly submitWord: (input: {
+    readonly text: string;
+    readonly clientId: string;
+    readonly ipAddress: string;
+    readonly now?: number;
+  }) => WordSubmissionResult;
+  readonly approveWord: (id: string) => boolean;
+  readonly voteForWord: (input: {
+    readonly id: string;
+    readonly clientId: string;
+    readonly ipAddress: string;
+    readonly now?: number;
+  }) => boolean;
+  readonly hideWord: (id: string) => boolean;
+  readonly mergeWord: (sourceId: string, targetText: string) => boolean;
+  readonly endWordCloud: (now?: number) => void;
+  readonly chooseActiveQuestion: (id: string) => boolean;
+  readonly markActiveQuestionDone: () => boolean;
+  readonly hideQuestion: (id: string) => boolean;
+  readonly resetPanel: () => void;
+  readonly getPanelMode: () => PanelMode;
+  readonly setPanelMode: (mode: PanelMode) => void;
+  readonly getWordPrompt: () => string;
+  readonly setWordPrompt: (prompt: string) => void;
+  readonly listAudienceQuestions: (clientId: string) => PublicQuestion[];
+  readonly listModeratorQuestions: (clientId: string) => PublicQuestion[];
+  readonly listMcQuestions: (clientId: string) => PublicQuestion[];
+  readonly getActivePublicQuestion: () => PublicQuestion | undefined;
+  readonly listAudienceWords: (clientId: string) => PublicWord[];
+  readonly listModeratorWords: (clientId: string) => PublicWord[];
+  readonly listScreenWords: () => PublicWord[];
+  readonly wordCloudEnded: () => boolean;
+  readonly clearPanelStateForTests: () => void;
+  readonly serializePanelState: () => SerializedPanelState;
+  readonly loadPanelState: (state: SerializedPanelState | undefined) => void;
+}
 
 const maximumQuestionLength = 220;
 const maximumQuestionSubmissions = 3;
@@ -123,441 +178,574 @@ const wordWindowMs = 60_000;
 const maximumFailedLoginAttempts = 8;
 const loginWindowMs = 10 * 60_000;
 
-export function proposeQuestion(input: {
-  readonly text: string;
-  readonly role: PanelRole;
-  readonly clientId: string;
-  readonly ipAddress: string;
-  readonly now?: number;
-}): QuestionSubmissionResult {
-  const now = input.now ?? Date.now();
-  const text = normalizeQuestion(input.text);
-
-  if (text.length < 8) {
-    return { ok: false, message: "Question is too short." };
-  }
-
-  if (isRateLimited(`question:${input.ipAddress}`, maximumQuestionSubmissions, questionWindowMs, now)) {
-    return { ok: false, message: "Please wait before adding another question." };
-  }
-
-  const id = createQuestionId();
-  const question: PanelQuestion = {
-    id,
-    text,
-    proposedBy: input.role,
-    submittedById: input.clientId,
-    createdAt: now,
-    voterIds: new Set(),
-    status: input.role === "moderator" ? "available" : "pending",
-  };
-
-  store.questions.set(id, question);
+export function createPanelState(): PanelStateApi {
+  const store = createPanelStore();
 
   return {
-    ok: true,
-    message: input.role === "moderator" ? "Question added." : "Question sent.",
-    question: toPublicQuestion(question, input.clientId),
+    proposeQuestion(input) {
+      const now = input.now ?? Date.now();
+      const text = normalizeQuestion(input.text);
+
+      if (text.length < 8) {
+        return { ok: false, message: "Question is too short." };
+      }
+
+      if (isRateLimited(store, `question:${input.ipAddress}`, maximumQuestionSubmissions, questionWindowMs, now)) {
+        return { ok: false, message: "Please wait before adding another question." };
+      }
+
+      const id = createQuestionId();
+      const question: PanelQuestion = {
+        id,
+        text,
+        proposedBy: input.role,
+        submittedById: input.clientId,
+        createdAt: now,
+        voterIds: new Set(),
+        status: input.role === "moderator" ? "available" : "pending",
+      };
+
+      store.questions.set(id, question);
+
+      return {
+        ok: true,
+        message: input.role === "moderator" ? "Question added." : "Question sent.",
+        question: toPublicQuestion(question, input.clientId),
+      };
+    },
+
+    isLoginRateLimited(input) {
+      return isCurrentlyRateLimited(
+        store,
+        loginRateLimitKey(input.role, input.ipAddress),
+        maximumFailedLoginAttempts,
+        loginWindowMs,
+        input.now ?? Date.now(),
+      );
+    },
+
+    recordFailedLoginAttempt(input) {
+      return isRateLimited(
+        store,
+        loginRateLimitKey(input.role, input.ipAddress),
+        maximumFailedLoginAttempts,
+        loginWindowMs,
+        input.now ?? Date.now(),
+      );
+    },
+
+    clearFailedLoginAttempts(input) {
+      store.rateLimits.delete(loginRateLimitKey(input.role, input.ipAddress));
+    },
+
+    voteForQuestion(input) {
+      const now = input.now ?? Date.now();
+
+      if (isRateLimited(store, `vote:${input.ipAddress}`, maximumVotes, voteWindowMs, now)) {
+        return false;
+      }
+
+      const question = store.questions.get(input.id);
+
+      if (
+        !question ||
+        question.status === "pending" ||
+        question.status === "hidden" ||
+        question.status === "done" ||
+        question.submittedById === input.clientId ||
+        question.voterIds.has(input.clientId)
+      ) {
+        return false;
+      }
+
+      store.questions.set(input.id, {
+        ...question,
+        voterIds: new Set([...question.voterIds, input.clientId]),
+      });
+
+      return true;
+    },
+
+    approveQuestion(id) {
+      const question = store.questions.get(id);
+
+      if (!question || question.status !== "pending") {
+        return false;
+      }
+
+      store.questions.set(id, { ...question, status: "available" });
+      return true;
+    },
+
+    editQuestion(id, inputText) {
+      const question = store.questions.get(id);
+      const text = normalizeQuestion(inputText);
+
+      if (!question || question.status === "done") {
+        return { ok: false, message: "Question not found." };
+      }
+
+      if (text.length < 8) {
+        return { ok: false, message: "Question is too short." };
+      }
+
+      const updatedQuestion = { ...question, text };
+      store.questions.set(id, updatedQuestion);
+
+      return { ok: true, message: "Question updated.", question: toPublicQuestion(updatedQuestion, "") };
+    },
+
+    submitWord(input) {
+      const now = input.now ?? Date.now();
+      const text = normalizeWordDisplay(input.text);
+      const normalizedText = normalizeWordKey(text);
+
+      if (store.wordCloudEndedAt !== undefined) {
+        return { ok: false, message: "Word cloud ended." };
+      }
+
+      if (normalizedText.length < 2) {
+        return { ok: false, message: "Word is too short." };
+      }
+
+      if (isRateLimited(store, `word:${input.ipAddress}`, maximumWordSubmissions, wordWindowMs, now)) {
+        return { ok: false, message: "Please wait before adding another word." };
+      }
+
+      const existing = findWordByKey(store, normalizedText);
+
+      if (existing && existing.status !== "hidden") {
+        const word = {
+          ...existing,
+          submissionCount: existing.submissionCount + 1,
+          submitterIds: new Set([...existing.submitterIds, input.clientId]),
+        };
+        store.words.set(existing.id, word);
+        return {
+          ok: true,
+          message: existing.status === "pending" ? "Word added." : "Word counted.",
+          word: toPublicWord(word, input.clientId),
+        };
+      }
+
+      const word: PanelWord = {
+        id: createQuestionId(),
+        text,
+        normalizedText,
+        createdAt: now,
+        submissionCount: 1,
+        submitterIds: new Set([input.clientId]),
+        voterIds: new Set(),
+        status: "pending",
+      };
+
+      store.words.set(word.id, word);
+      return { ok: true, message: "Word added.", word: toPublicWord(word, input.clientId) };
+    },
+
+    approveWord(id) {
+      const word = store.words.get(id);
+
+      if (!word || word.status === "hidden") {
+        return false;
+      }
+
+      store.words.set(id, { ...word, status: "approved" });
+      return true;
+    },
+
+    voteForWord(input) {
+      const now = input.now ?? Date.now();
+
+      if (store.wordCloudEndedAt !== undefined || isRateLimited(store, `word-vote:${input.ipAddress}`, maximumVotes, voteWindowMs, now)) {
+        return false;
+      }
+
+      const word = store.words.get(input.id);
+
+      if (!word || word.status !== "approved" || word.submitterIds.has(input.clientId) || word.voterIds.has(input.clientId)) {
+        return false;
+      }
+
+      store.words.set(input.id, {
+        ...word,
+        voterIds: new Set([...word.voterIds, input.clientId]),
+      });
+
+      return true;
+    },
+
+    hideWord(id) {
+      const word = store.words.get(id);
+
+      if (!word) {
+        return false;
+      }
+
+      store.words.set(id, { ...word, status: "hidden" });
+      return true;
+    },
+
+    mergeWord(sourceId, targetText) {
+      const source = store.words.get(sourceId);
+      const normalizedTarget = normalizeWordKey(targetText);
+
+      if (!source || source.status === "hidden" || normalizedTarget.length < 2) {
+        return false;
+      }
+
+      const target = findWordByKey(store, normalizedTarget);
+
+      if (!target || target.id === source.id || target.status === "hidden") {
+        store.words.set(source.id, {
+          ...source,
+          text: normalizeWordDisplay(targetText),
+          normalizedText: normalizedTarget,
+        });
+        return true;
+      }
+
+      store.words.set(target.id, {
+        ...target,
+        submissionCount: target.submissionCount + source.submissionCount,
+        submitterIds: new Set([...target.submitterIds, ...source.submitterIds]),
+        voterIds: new Set([...target.voterIds, ...source.voterIds]),
+        status: target.status === "approved" || source.status === "approved" ? "approved" : "pending",
+      });
+      store.words.set(source.id, { ...source, status: "hidden" });
+      return true;
+    },
+
+    endWordCloud(now = Date.now()) {
+      store.wordCloudEndedAt = now;
+    },
+
+    chooseActiveQuestion(id) {
+      const selected = store.questions.get(id);
+
+      if (!selected || selected.status === "pending" || selected.status === "hidden" || selected.status === "done") {
+        return false;
+      }
+
+      for (const question of store.questions.values()) {
+        if (question.status === "active") {
+          store.questions.set(question.id, { ...question, status: "available" });
+        }
+      }
+
+      store.questions.set(id, { ...selected, status: "active" });
+      return true;
+    },
+
+    markActiveQuestionDone() {
+      const active = getActiveQuestion(store);
+
+      if (!active) {
+        return false;
+      }
+
+      store.questions.set(active.id, { ...active, status: "done" });
+      return true;
+    },
+
+    hideQuestion(id) {
+      const question = store.questions.get(id);
+
+      if (!question || question.status === "done") {
+        return false;
+      }
+
+      store.questions.set(id, { ...question, status: "hidden" });
+      return true;
+    },
+
+    resetPanel() {
+      clearStore(store);
+    },
+
+    getPanelMode() {
+      return store.mode;
+    },
+
+    setPanelMode(mode) {
+      store.mode = mode;
+    },
+
+    getWordPrompt() {
+      return store.wordPrompt;
+    },
+
+    setWordPrompt(prompt) {
+      store.wordPrompt = normalizeWordPrompt(prompt);
+    },
+
+    listAudienceQuestions(clientId) {
+      return sortQuestions(
+        [...store.questions.values()].filter(
+          (question) =>
+            question.status === "available" ||
+            question.status === "active" ||
+            (question.status === "pending" && question.submittedById === clientId),
+        ),
+      ).map((question) => toPublicQuestion(question, clientId));
+    },
+
+    listModeratorQuestions(clientId) {
+      return sortQuestions([...store.questions.values()].filter((question) => question.status !== "done")).map((question) =>
+        toPublicQuestion(question, clientId),
+      );
+    },
+
+    listMcQuestions(clientId) {
+      return sortQuestions(
+        [...store.questions.values()].filter((question) => question.status === "available" || question.status === "active"),
+      ).map((question) => toPublicQuestion(question, clientId));
+    },
+
+    getActivePublicQuestion() {
+      const active = getActiveQuestion(store);
+      return active ? toPublicQuestion(active, "") : undefined;
+    },
+
+    listAudienceWords(clientId) {
+      if (store.wordCloudEndedAt !== undefined) {
+        return [];
+      }
+
+      return sortPublicWords(
+        [...store.words.values()]
+          .filter((word) => word.status === "approved" || (word.status === "pending" && word.submitterIds.has(clientId)))
+          .map((word) => toPublicWord(word, clientId)),
+      );
+    },
+
+    listModeratorWords(clientId) {
+      return sortWords([...store.words.values()].filter((word) => word.status !== "hidden")).map((word) => toPublicWord(word, clientId));
+    },
+
+    listScreenWords() {
+      if (store.wordCloudEndedAt !== undefined) {
+        return [];
+      }
+
+      return sortWords([...store.words.values()].filter((word) => word.status === "approved")).map((word) => toPublicWord(word, ""));
+    },
+
+    wordCloudEnded() {
+      return store.wordCloudEndedAt !== undefined;
+    },
+
+    clearPanelStateForTests() {
+      clearStore(store, true);
+    },
+
+    serializePanelState() {
+      return {
+        mode: store.mode,
+        wordPrompt: store.wordPrompt,
+        questions: [...store.questions.values()].map((question) => ({
+          ...question,
+          voterIds: [...question.voterIds],
+        })),
+        words: [...store.words.values()].map((word) => ({
+          ...word,
+          submitterIds: [...word.submitterIds],
+          voterIds: [...word.voterIds],
+        })),
+        rateLimits: [...store.rateLimits.entries()].map(([key, bucket]) => [key, bucket.timestamps]),
+        wordCloudEndedAt: store.wordCloudEndedAt,
+      };
+    },
+
+    loadPanelState(state) {
+      clearStore(store, true);
+
+      if (!state) {
+        return;
+      }
+
+      for (const question of state.questions) {
+        store.questions.set(question.id, {
+          ...question,
+          submittedById: question.submittedById ?? question.voterIds[0] ?? "",
+          voterIds: new Set(question.voterIds),
+        });
+      }
+
+      for (const word of state.words) {
+        store.words.set(word.id, {
+          ...word,
+          submitterIds: new Set(word.submitterIds ?? []),
+          voterIds: new Set(word.voterIds),
+        });
+      }
+
+      for (const [key, timestamps] of state.rateLimits) {
+        store.rateLimits.set(key, { timestamps: [...timestamps] });
+      }
+
+      store.mode = state.mode ?? "qa";
+      store.wordPrompt = normalizeWordPrompt(state.wordPrompt ?? "");
+      store.wordCloudEndedAt = state.wordCloudEndedAt;
+    },
   };
 }
 
-export function isLoginRateLimited(input: {
-  readonly role: Exclude<PanelRole, "attendee">;
-  readonly ipAddress: string;
-  readonly now?: number;
-}): boolean {
-  return isCurrentlyRateLimited(
-    loginRateLimitKey(input.role, input.ipAddress),
-    maximumFailedLoginAttempts,
-    loginWindowMs,
-    input.now ?? Date.now(),
-  );
+export const defaultPanelState = createPanelState();
+
+export function proposeQuestion(input: Parameters<PanelStateApi["proposeQuestion"]>[0]): QuestionSubmissionResult {
+  return defaultPanelState.proposeQuestion(input);
 }
 
-export function recordFailedLoginAttempt(input: {
-  readonly role: Exclude<PanelRole, "attendee">;
-  readonly ipAddress: string;
-  readonly now?: number;
-}): boolean {
-  return isRateLimited(loginRateLimitKey(input.role, input.ipAddress), maximumFailedLoginAttempts, loginWindowMs, input.now ?? Date.now());
+export function isLoginRateLimited(input: Parameters<PanelStateApi["isLoginRateLimited"]>[0]): boolean {
+  return defaultPanelState.isLoginRateLimited(input);
 }
 
-export function clearFailedLoginAttempts(input: { readonly role: Exclude<PanelRole, "attendee">; readonly ipAddress: string }): void {
-  store.rateLimits.delete(loginRateLimitKey(input.role, input.ipAddress));
+export function recordFailedLoginAttempt(input: Parameters<PanelStateApi["recordFailedLoginAttempt"]>[0]): boolean {
+  return defaultPanelState.recordFailedLoginAttempt(input);
 }
 
-export function voteForQuestion(input: {
-  readonly id: string;
-  readonly clientId: string;
-  readonly ipAddress: string;
-  readonly now?: number;
-}): boolean {
-  const now = input.now ?? Date.now();
+export function clearFailedLoginAttempts(input: Parameters<PanelStateApi["clearFailedLoginAttempts"]>[0]): void {
+  defaultPanelState.clearFailedLoginAttempts(input);
+}
 
-  if (isRateLimited(`vote:${input.ipAddress}`, maximumVotes, voteWindowMs, now)) {
-    return false;
-  }
-
-  const question = store.questions.get(input.id);
-
-  if (
-    !question ||
-    question.status === "pending" ||
-    question.status === "hidden" ||
-    question.status === "done" ||
-    question.submittedById === input.clientId ||
-    question.voterIds.has(input.clientId)
-  ) {
-    return false;
-  }
-
-  store.questions.set(input.id, {
-    ...question,
-    voterIds: new Set([...question.voterIds, input.clientId]),
-  });
-
-  return true;
+export function voteForQuestion(input: Parameters<PanelStateApi["voteForQuestion"]>[0]): boolean {
+  return defaultPanelState.voteForQuestion(input);
 }
 
 export function approveQuestion(id: string): boolean {
-  const question = store.questions.get(id);
-
-  if (!question || question.status !== "pending") {
-    return false;
-  }
-
-  store.questions.set(id, { ...question, status: "available" });
-  return true;
+  return defaultPanelState.approveQuestion(id);
 }
 
 export function editQuestion(id: string, inputText: string): QuestionSubmissionResult {
-  const question = store.questions.get(id);
-  const text = normalizeQuestion(inputText);
-
-  if (!question || question.status === "done") {
-    return { ok: false, message: "Question not found." };
-  }
-
-  if (text.length < 8) {
-    return { ok: false, message: "Question is too short." };
-  }
-
-  const updatedQuestion = { ...question, text };
-  store.questions.set(id, updatedQuestion);
-
-  return { ok: true, message: "Question updated.", question: toPublicQuestion(updatedQuestion, "") };
+  return defaultPanelState.editQuestion(id, inputText);
 }
 
-export function submitWord(input: {
-  readonly text: string;
-  readonly clientId: string;
-  readonly ipAddress: string;
-  readonly now?: number;
-}): WordSubmissionResult {
-  const now = input.now ?? Date.now();
-  const text = normalizeWordDisplay(input.text);
-  const normalizedText = normalizeWordKey(text);
-
-  if (store.wordCloudEndedAt !== undefined) {
-    return { ok: false, message: "Word cloud ended." };
-  }
-
-  if (normalizedText.length < 2) {
-    return { ok: false, message: "Word is too short." };
-  }
-
-  if (isRateLimited(`word:${input.ipAddress}`, maximumWordSubmissions, wordWindowMs, now)) {
-    return { ok: false, message: "Please wait before adding another word." };
-  }
-
-  const existing = findWordByKey(normalizedText);
-
-  if (existing && existing.status !== "hidden") {
-    const word = {
-      ...existing,
-      submissionCount: existing.submissionCount + 1,
-      submitterIds: new Set([...existing.submitterIds, input.clientId]),
-    };
-    store.words.set(existing.id, word);
-    return { ok: true, message: existing.status === "pending" ? "Word added." : "Word counted.", word: toPublicWord(word, input.clientId) };
-  }
-
-  const word: PanelWord = {
-    id: createQuestionId(),
-    text,
-    normalizedText,
-    createdAt: now,
-    submissionCount: 1,
-    submitterIds: new Set([input.clientId]),
-    voterIds: new Set(),
-    status: "pending",
-  };
-
-  store.words.set(word.id, word);
-  return { ok: true, message: "Word added.", word: toPublicWord(word, input.clientId) };
+export function submitWord(input: Parameters<PanelStateApi["submitWord"]>[0]): WordSubmissionResult {
+  return defaultPanelState.submitWord(input);
 }
 
 export function approveWord(id: string): boolean {
-  const word = store.words.get(id);
-
-  if (!word || word.status === "hidden") {
-    return false;
-  }
-
-  store.words.set(id, { ...word, status: "approved" });
-  return true;
+  return defaultPanelState.approveWord(id);
 }
 
-export function voteForWord(input: {
-  readonly id: string;
-  readonly clientId: string;
-  readonly ipAddress: string;
-  readonly now?: number;
-}): boolean {
-  const now = input.now ?? Date.now();
-
-  if (store.wordCloudEndedAt !== undefined || isRateLimited(`word-vote:${input.ipAddress}`, maximumVotes, voteWindowMs, now)) {
-    return false;
-  }
-
-  const word = store.words.get(input.id);
-
-  if (!word || word.status !== "approved" || word.submitterIds.has(input.clientId) || word.voterIds.has(input.clientId)) {
-    return false;
-  }
-
-  store.words.set(input.id, {
-    ...word,
-    voterIds: new Set([...word.voterIds, input.clientId]),
-  });
-
-  return true;
+export function voteForWord(input: Parameters<PanelStateApi["voteForWord"]>[0]): boolean {
+  return defaultPanelState.voteForWord(input);
 }
 
 export function hideWord(id: string): boolean {
-  const word = store.words.get(id);
-
-  if (!word) {
-    return false;
-  }
-
-  store.words.set(id, { ...word, status: "hidden" });
-  return true;
+  return defaultPanelState.hideWord(id);
 }
 
 export function mergeWord(sourceId: string, targetText: string): boolean {
-  const source = store.words.get(sourceId);
-  const normalizedTarget = normalizeWordKey(targetText);
-
-  if (!source || source.status === "hidden" || normalizedTarget.length < 2) {
-    return false;
-  }
-
-  const target = findWordByKey(normalizedTarget);
-
-  if (!target || target.id === source.id || target.status === "hidden") {
-    store.words.set(source.id, {
-      ...source,
-      text: normalizeWordDisplay(targetText),
-      normalizedText: normalizedTarget,
-    });
-    return true;
-  }
-
-  store.words.set(target.id, {
-    ...target,
-    submissionCount: target.submissionCount + source.submissionCount,
-    submitterIds: new Set([...target.submitterIds, ...source.submitterIds]),
-    voterIds: new Set([...target.voterIds, ...source.voterIds]),
-    status: target.status === "approved" || source.status === "approved" ? "approved" : "pending",
-  });
-  store.words.set(source.id, { ...source, status: "hidden" });
-  return true;
+  return defaultPanelState.mergeWord(sourceId, targetText);
 }
 
-export function endWordCloud(now = Date.now()): void {
-  store.wordCloudEndedAt = now;
+export function endWordCloud(now?: number): void {
+  defaultPanelState.endWordCloud(now);
 }
 
 export function chooseActiveQuestion(id: string): boolean {
-  const selected = store.questions.get(id);
-
-  if (!selected || selected.status === "pending" || selected.status === "hidden" || selected.status === "done") {
-    return false;
-  }
-
-  for (const question of store.questions.values()) {
-    if (question.status === "active") {
-      store.questions.set(question.id, { ...question, status: "available" });
-    }
-  }
-
-  store.questions.set(id, { ...selected, status: "active" });
-  return true;
+  return defaultPanelState.chooseActiveQuestion(id);
 }
 
 export function markActiveQuestionDone(): boolean {
-  const active = getActiveQuestion();
-
-  if (!active) {
-    return false;
-  }
-
-  store.questions.set(active.id, { ...active, status: "done" });
-  return true;
+  return defaultPanelState.markActiveQuestionDone();
 }
 
 export function hideQuestion(id: string): boolean {
-  const question = store.questions.get(id);
-
-  if (!question || question.status === "done") {
-    return false;
-  }
-
-  store.questions.set(id, { ...question, status: "hidden" });
-  return true;
+  return defaultPanelState.hideQuestion(id);
 }
 
 export function resetPanel(): void {
-  store.questions.clear();
-  store.words.clear();
-  store.mode = "qa";
-  store.wordPrompt = "";
-  store.wordCloudEndedAt = undefined;
+  defaultPanelState.resetPanel();
 }
 
 export function getPanelMode(): PanelMode {
-  return store.mode;
+  return defaultPanelState.getPanelMode();
 }
 
 export function setPanelMode(mode: PanelMode): void {
-  store.mode = mode;
+  defaultPanelState.setPanelMode(mode);
 }
 
 export function getWordPrompt(): string {
-  return store.wordPrompt;
+  return defaultPanelState.getWordPrompt();
 }
 
 export function setWordPrompt(prompt: string): void {
-  store.wordPrompt = normalizeWordPrompt(prompt);
+  defaultPanelState.setWordPrompt(prompt);
 }
 
 export function listAudienceQuestions(clientId: string): PublicQuestion[] {
-  return sortQuestions(
-    [...store.questions.values()].filter(
-      (question) =>
-        question.status === "available" ||
-        question.status === "active" ||
-        (question.status === "pending" && question.submittedById === clientId),
-    ),
-  ).map((question) => toPublicQuestion(question, clientId));
+  return defaultPanelState.listAudienceQuestions(clientId);
 }
 
 export function listModeratorQuestions(clientId: string): PublicQuestion[] {
-  return sortQuestions([...store.questions.values()].filter((question) => question.status !== "done")).map((question) =>
-    toPublicQuestion(question, clientId),
-  );
+  return defaultPanelState.listModeratorQuestions(clientId);
 }
 
 export function listMcQuestions(clientId: string): PublicQuestion[] {
-  return sortQuestions(
-    [...store.questions.values()].filter((question) => question.status === "available" || question.status === "active"),
-  ).map((question) => toPublicQuestion(question, clientId));
+  return defaultPanelState.listMcQuestions(clientId);
 }
 
 export function getActivePublicQuestion(): PublicQuestion | undefined {
-  const active = getActiveQuestion();
-  return active ? toPublicQuestion(active, "") : undefined;
+  return defaultPanelState.getActivePublicQuestion();
 }
 
 export function listAudienceWords(clientId: string): PublicWord[] {
-  if (store.wordCloudEndedAt !== undefined) {
-    return [];
-  }
-
-  return sortPublicWords(
-    [...store.words.values()]
-      .filter((word) => word.status === "approved" || (word.status === "pending" && word.submitterIds.has(clientId)))
-      .map((word) => toPublicWord(word, clientId)),
-  );
+  return defaultPanelState.listAudienceWords(clientId);
 }
 
 export function listModeratorWords(clientId: string): PublicWord[] {
-  return sortWords([...store.words.values()].filter((word) => word.status !== "hidden")).map((word) => toPublicWord(word, clientId));
+  return defaultPanelState.listModeratorWords(clientId);
 }
 
 export function listScreenWords(): PublicWord[] {
-  if (store.wordCloudEndedAt !== undefined) {
-    return [];
-  }
-
-  return sortWords([...store.words.values()].filter((word) => word.status === "approved")).map((word) => toPublicWord(word, ""));
+  return defaultPanelState.listScreenWords();
 }
 
 export function wordCloudEnded(): boolean {
-  return store.wordCloudEndedAt !== undefined;
+  return defaultPanelState.wordCloudEnded();
 }
 
 export function clearPanelStateForTests(): void {
+  defaultPanelState.clearPanelStateForTests();
+}
+
+export function serializePanelState(): SerializedPanelState {
+  return defaultPanelState.serializePanelState();
+}
+
+export function loadPanelState(state: SerializedPanelState | undefined): void {
+  defaultPanelState.loadPanelState(state);
+}
+
+function createPanelStore(): PanelStore {
+  return {
+    questions: new Map(),
+    words: new Map(),
+    rateLimits: new Map(),
+    mode: "qa",
+    wordPrompt: "",
+    wordCloudEndedAt: undefined,
+  };
+}
+
+function clearStore(store: PanelStore, includeRateLimits = false): void {
   store.questions.clear();
   store.words.clear();
-  store.rateLimits.clear();
+
+  if (includeRateLimits) {
+    store.rateLimits.clear();
+  }
+
   store.mode = "qa";
   store.wordPrompt = "";
   store.wordCloudEndedAt = undefined;
 }
 
-export function serializePanelState(): SerializedPanelState {
-  return {
-    mode: store.mode,
-    wordPrompt: store.wordPrompt,
-    questions: [...store.questions.values()].map((question) => ({
-      ...question,
-      voterIds: [...question.voterIds],
-    })),
-    words: [...store.words.values()].map((word) => ({
-      ...word,
-      submitterIds: [...word.submitterIds],
-      voterIds: [...word.voterIds],
-    })),
-    rateLimits: [...store.rateLimits.entries()].map(([key, bucket]) => [key, bucket.timestamps]),
-    wordCloudEndedAt: store.wordCloudEndedAt,
-  };
-}
-
-export function loadPanelState(state: SerializedPanelState | undefined): void {
-  clearPanelStateForTests();
-
-  if (!state) {
-    return;
-  }
-
-  for (const question of state.questions) {
-    store.questions.set(question.id, {
-      ...question,
-      submittedById: question.submittedById ?? question.voterIds[0] ?? "",
-      voterIds: new Set(question.voterIds),
-    });
-  }
-
-  for (const word of state.words) {
-    store.words.set(word.id, {
-      ...word,
-      submitterIds: new Set(word.submitterIds ?? []),
-      voterIds: new Set(word.voterIds),
-    });
-  }
-
-  for (const [key, timestamps] of state.rateLimits) {
-    store.rateLimits.set(key, { timestamps: [...timestamps] });
-  }
-
-  store.mode = state.mode ?? "qa";
-  store.wordPrompt = normalizeWordPrompt(state.wordPrompt ?? "");
-  store.wordCloudEndedAt = state.wordCloudEndedAt;
-}
-
-function getActiveQuestion(): PanelQuestion | undefined {
+function getActiveQuestion(store: PanelStore): PanelQuestion | undefined {
   return [...store.questions.values()].find((question) => question.status === "active");
 }
 
@@ -663,11 +851,11 @@ function sortPublicWords(words: PublicWord[]): PublicWord[] {
   });
 }
 
-function findWordByKey(normalizedText: string): PanelWord | undefined {
+function findWordByKey(store: PanelStore, normalizedText: string): PanelWord | undefined {
   return [...store.words.values()].find((word) => word.normalizedText === normalizedText);
 }
 
-function isRateLimited(key: string, maximum: number, windowMs: number, now: number): boolean {
+function isRateLimited(store: PanelStore, key: string, maximum: number, windowMs: number, now: number): boolean {
   const bucket = store.rateLimits.get(key) ?? { timestamps: [] };
   const recentTimestamps = bucket.timestamps.filter((timestamp) => now - timestamp < windowMs);
 
@@ -680,7 +868,7 @@ function isRateLimited(key: string, maximum: number, windowMs: number, now: numb
   return false;
 }
 
-function isCurrentlyRateLimited(key: string, maximum: number, windowMs: number, now: number): boolean {
+function isCurrentlyRateLimited(store: PanelStore, key: string, maximum: number, windowMs: number, now: number): boolean {
   const bucket = store.rateLimits.get(key) ?? { timestamps: [] };
   const recentTimestamps = bucket.timestamps.filter((timestamp) => now - timestamp < windowMs);
   store.rateLimits.set(key, { timestamps: recentTimestamps });

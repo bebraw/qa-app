@@ -404,6 +404,34 @@ describe("worker", () => {
     expect(moderatorHtml).toContain("Under consideration");
   });
 
+  it("keeps durable object room state isolated by instance", async () => {
+    const firstRoom = createTestPanelRoom(new Map<string, unknown>());
+    const secondRoom = createTestPanelRoom(new Map<string, unknown>());
+    const moderatorLogin = await firstRoom.fetch(
+      new Request("http://example.com/moderate/login", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ passcode: "mod-passcode" }),
+      }),
+    );
+    const moderatorCookie = cookieHeaderFromResponse(moderatorLogin);
+
+    await firstRoom.fetch(
+      new Request("http://example.com/moderate", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", cookie: moderatorCookie },
+        body: new URLSearchParams({ question: "Which room owns this durable object state?" }),
+      }),
+    );
+
+    await expect(firstRoom.fetch(new Request("http://example.com/present")).then((response) => response.text())).resolves.toContain(
+      "Which room owns this durable object state?",
+    );
+    await expect(secondRoom.fetch(new Request("http://example.com/present")).then((response) => response.text())).resolves.not.toContain(
+      "Which room owns this durable object state?",
+    );
+  });
+
   it("streams panel state change events from the durable object room", async () => {
     const room = createTestPanelRoom(new Map<string, unknown>());
     const eventResponse = await room.fetch(new Request("http://example.com/events"));

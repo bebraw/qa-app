@@ -11,7 +11,7 @@ The implementation should stay lightweight enough to run inside the existing Wor
 ### Architecture
 
 - **Entry points:** `src/worker.ts` routes panel requests and forwards panel state routes to the `PanelRoom` Durable Object when the `PANEL_ROOM` binding is available.
-- **State model:** `src/panel/state.ts` stores questions, word-cloud entries, word-cloud prompt text, votes, active selection, hidden status, done status, ended word-cloud status, and rate-limit buckets for the active room.
+- **State model:** `src/panel/state.ts` stores questions, word-cloud entries, word-cloud prompt text, votes, active selection, hidden status, done status, ended word-cloud status, and rate-limit buckets for the active room. Each `PanelRoom` Durable Object owns its own explicit panel-state instance; the module-level default state exists only for focused tests and missing-binding local fallback paths.
 - **Auth model:** `src/panel/auth.ts` signs separate MC and moderator role cookies with `AUTH_SECRET`; MC and moderator passcodes come from `MC_PASSCODE` and `MODERATOR_PASSCODE`.
 - **Views:** `src/views/panel.ts` renders server-side HTML for attendee, present, MC, moderator, and audience-screen views.
 - **Visual system:** Panel views use black-and-white UI tokens, the bundled Finlandica Headline font, and compact labels instead of explanatory helper text.
@@ -116,6 +116,7 @@ Options for stronger controls:
 - Approved word-cloud entries must appear on already-open attendee root and word-screen pages without a manual browser refresh.
 - Word-cloud layout must weight approved words by total count instead of rendering every word at the same visual size.
 - Panel state routes must use the `PANEL_ROOM` Durable Object binding when it is configured.
+- Durable Object room instances must not share module-level panel state.
 - Moderator word merges must support exact normalized matches and manually chosen variants such as different casing, punctuation, or alternate words.
 - Ending word-cloud mode must stop attendee/screen visibility while keeping data visible to the moderator until reset.
 - The screen view must not show anything except the active question or an empty waiting state.

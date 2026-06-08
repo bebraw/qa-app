@@ -11,41 +11,7 @@ import {
   rolePasscodeConfigured,
   type PanelEnv,
 } from "./panel/auth";
-import {
-  approveQuestion,
-  approveWord,
-  chooseActiveQuestion,
-  clearFailedLoginAttempts,
-  endWordCloud,
-  editQuestion,
-  getActivePublicQuestion,
-  getPanelMode,
-  getWordPrompt,
-  hideQuestion,
-  hideWord,
-  isLoginRateLimited,
-  listAudienceQuestions,
-  listAudienceWords,
-  listMcQuestions,
-  listModeratorQuestions,
-  listModeratorWords,
-  listScreenWords,
-  loadPanelState,
-  mergeWord,
-  markActiveQuestionDone,
-  proposeQuestion,
-  recordFailedLoginAttempt,
-  resetPanel,
-  serializePanelState,
-  setPanelMode,
-  setWordPrompt,
-  submitWord,
-  voteForQuestion,
-  voteForWord,
-  wordCloudEnded,
-  type PanelMode,
-  type SerializedPanelState,
-} from "./panel/state";
+import { createPanelState, defaultPanelState, type PanelMode, type PanelStateApi, type SerializedPanelState } from "./panel/state";
 import { renderNotFoundPage } from "./views/not-found";
 import {
   renderAudienceModeContent,
@@ -108,6 +74,7 @@ export default {
 export class PanelRoom {
   private hydrated = false;
   private readonly liveClients = new Set<LiveClient>();
+  private readonly panelState = createPanelState();
 
   constructor(
     private readonly state: DurableObjectState,
@@ -122,10 +89,10 @@ export class PanelRoom {
       return await this.createEventsResponse(request);
     }
 
-    const response = await handleRequest(request, this.env, false);
+    const response = await handleRequest(request, this.env, false, this.panelState);
 
     if (changesPanelState(request)) {
-      await this.state.storage.put(panelStateStorageKey, serializePanelState());
+      await this.state.storage.put(panelStateStorageKey, this.panelState.serializePanelState());
       this.broadcastPanelStateChanged();
     }
 
@@ -184,12 +151,17 @@ export class PanelRoom {
       return;
     }
 
-    loadPanelState(await this.state.storage.get<SerializedPanelState>(panelStateStorageKey));
+    this.panelState.loadPanelState(await this.state.storage.get<SerializedPanelState>(panelStateStorageKey));
     this.hydrated = true;
   }
 }
 
-export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, routeToDurableObject = true): Promise<Response> {
+export async function handleRequest(
+  request: Request,
+  env: PanelWorkerEnv = {},
+  routeToDurableObject = true,
+  panelState: PanelStateApi = defaultPanelState,
+): Promise<Response> {
   const url = new URL(request.url);
 
   if (url.pathname === "/styles.css") {
@@ -213,7 +185,7 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
   }
 
   if (request.method === "POST") {
-    return await handlePost(request, env);
+    return await handlePost(request, env, panelState);
   }
 
   const attendee = getOrCreateAttendeeId(request);
@@ -222,10 +194,10 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
   if (url.pathname === "/") {
     return htmlResponse(
       renderAudiencePage({
-        mode: getPanelMode(),
-        questions: listAudienceQuestions(attendee.id),
-        words: listAudienceWords(attendee.id),
-        wordPrompt: getVisibleWordPrompt(),
+        mode: panelState.getPanelMode(),
+        questions: panelState.listAudienceQuestions(attendee.id),
+        words: panelState.listAudienceWords(attendee.id),
+        wordPrompt: getVisibleWordPrompt(panelState),
         notice: url.searchParams.get("notice") ?? undefined,
       }),
       200,
@@ -236,25 +208,25 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
   if (url.pathname === "/live") {
     return htmlResponse(
       renderAudienceModeContent({
-        mode: getPanelMode(),
-        questions: listAudienceQuestions(attendee.id),
-        words: listAudienceWords(attendee.id),
-        wordPrompt: getVisibleWordPrompt(),
+        mode: panelState.getPanelMode(),
+        questions: panelState.listAudienceQuestions(attendee.id),
+        words: panelState.listAudienceWords(attendee.id),
+        wordPrompt: getVisibleWordPrompt(panelState),
       }),
     );
   }
 
   if (url.pathname === "/questions/live") {
-    return htmlResponse(renderAudienceQuestionsContent(listAudienceQuestions(attendee.id)));
+    return htmlResponse(renderAudienceQuestionsContent(panelState.listAudienceQuestions(attendee.id)));
   }
 
   if (url.pathname === "/present") {
     return htmlResponse(
       renderPresentPage({
-        mode: getPanelMode(),
-        questions: listAudienceQuestions(""),
-        words: listAudienceWords(""),
-        wordPrompt: getVisibleWordPrompt(),
+        mode: panelState.getPanelMode(),
+        questions: panelState.listAudienceQuestions(""),
+        words: panelState.listAudienceWords(""),
+        wordPrompt: getVisibleWordPrompt(panelState),
       }),
     );
   }
@@ -262,10 +234,10 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
   if (url.pathname === "/present/live") {
     return htmlResponse(
       renderPresentModeContent({
-        mode: getPanelMode(),
-        questions: listAudienceQuestions(""),
-        words: listAudienceWords(""),
-        wordPrompt: getVisibleWordPrompt(),
+        mode: panelState.getPanelMode(),
+        questions: panelState.listAudienceQuestions(""),
+        words: panelState.listAudienceWords(""),
+        wordPrompt: getVisibleWordPrompt(panelState),
       }),
     );
   }
@@ -274,11 +246,11 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
     const auth = await readAuthState(request, env);
     return htmlResponse(
       renderMcPage({
-        mode: getPanelMode(),
-        questions: listMcQuestions(attendee.id),
-        words: listAudienceWords(attendee.id),
-        wordPrompt: getVisibleWordPrompt(),
-        wordCloudEnded: wordCloudEnded(),
+        mode: panelState.getPanelMode(),
+        questions: panelState.listMcQuestions(attendee.id),
+        words: panelState.listAudienceWords(attendee.id),
+        wordPrompt: getVisibleWordPrompt(panelState),
+        wordCloudEnded: panelState.wordCloudEnded(),
         auth,
         notice: url.searchParams.get("notice") ?? undefined,
       }),
@@ -294,7 +266,7 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
       return htmlResponse("", 403);
     }
 
-    return htmlResponse(renderMcQuestionsContent(listMcQuestions(attendee.id)));
+    return htmlResponse(renderMcQuestionsContent(panelState.listMcQuestions(attendee.id)));
   }
 
   if (url.pathname === "/moderate") {
@@ -302,11 +274,11 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
 
     return htmlResponse(
       renderModeratorPage({
-        mode: getPanelMode(),
-        questions: listModeratorQuestions(attendee.id),
-        words: listModeratorWords(attendee.id),
-        wordPrompt: getWordPrompt(),
-        wordCloudEnded: wordCloudEnded(),
+        mode: panelState.getPanelMode(),
+        questions: panelState.listModeratorQuestions(attendee.id),
+        words: panelState.listModeratorWords(attendee.id),
+        wordPrompt: panelState.getWordPrompt(),
+        wordCloudEnded: panelState.wordCloudEnded(),
         auth,
         notice: url.searchParams.get("notice") ?? undefined,
       }),
@@ -324,11 +296,11 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
 
     return htmlResponse(
       renderModeratorModeContent({
-        mode: getPanelMode(),
-        questions: listModeratorQuestions(attendee.id),
-        words: listModeratorWords(attendee.id),
-        wordPrompt: getWordPrompt(),
-        wordCloudEnded: wordCloudEnded(),
+        mode: panelState.getPanelMode(),
+        questions: panelState.listModeratorQuestions(attendee.id),
+        words: panelState.listModeratorWords(attendee.id),
+        wordPrompt: panelState.getWordPrompt(),
+        wordCloudEnded: panelState.wordCloudEnded(),
         auth,
       }),
     );
@@ -341,7 +313,7 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
       return htmlResponse("", 403);
     }
 
-    return htmlResponse(renderModeratorQuestionsContent(listModeratorQuestions(attendee.id)));
+    return htmlResponse(renderModeratorQuestionsContent(panelState.listModeratorQuestions(attendee.id)));
   }
 
   if (url.pathname === "/moderate/words/live") {
@@ -351,23 +323,23 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
       return htmlResponse("", 403);
     }
 
-    return htmlResponse(renderModeratorWordsContent(listModeratorWords(attendee.id), wordCloudEnded()));
+    return htmlResponse(renderModeratorWordsContent(panelState.listModeratorWords(attendee.id), panelState.wordCloudEnded()));
   }
 
   if (url.pathname === "/screen") {
-    return htmlResponse(renderScreenPage(getActivePublicQuestion()));
+    return htmlResponse(renderScreenPage(panelState.getActivePublicQuestion()));
   }
 
   if (url.pathname === "/screen/live") {
-    return htmlResponse(renderScreenContent(getActivePublicQuestion()));
+    return htmlResponse(renderScreenContent(panelState.getActivePublicQuestion()));
   }
 
   if (url.pathname === "/words/screen") {
-    return htmlResponse(renderWordScreenPage(listScreenWords(), getVisibleWordPrompt()));
+    return htmlResponse(renderWordScreenPage(panelState.listScreenWords(), getVisibleWordPrompt(panelState)));
   }
 
   if (url.pathname === "/words/screen/live") {
-    return htmlResponse(renderWordScreenContent(listScreenWords(), getVisibleWordPrompt()));
+    return htmlResponse(renderWordScreenContent(panelState.listScreenWords(), getVisibleWordPrompt(panelState)));
   }
 
   if (url.pathname === "/api/health") {
@@ -377,7 +349,7 @@ export async function handleRequest(request: Request, env: PanelWorkerEnv = {}, 
   return htmlResponse(renderNotFoundPage(url.pathname), 404);
 }
 
-async function handlePost(request: Request, env: PanelEnv): Promise<Response> {
+async function handlePost(request: Request, env: PanelEnv, panelState: PanelStateApi): Promise<Response> {
   const url = new URL(request.url);
   const attendee = getOrCreateAttendeeId(request);
   const cookieHeader = cookieHeaders(attendee.cookie);
@@ -386,15 +358,15 @@ async function handlePost(request: Request, env: PanelEnv): Promise<Response> {
     const formData = await request.formData();
     const ipAddress = getClientIp(request);
 
-    if (getPanelMode() === "wordcloud") {
+    if (panelState.getPanelMode() === "wordcloud") {
       const wordId = getFormValue(formData, "wordId");
 
       if (wordId) {
-        voteForWord({ id: wordId, clientId: attendee.id, ipAddress });
+        panelState.voteForWord({ id: wordId, clientId: attendee.id, ipAddress });
         return redirectResponse("/", cookieHeader);
       }
 
-      const result = submitWord({
+      const result = panelState.submitWord({
         text: getFormValue(formData, "word"),
         clientId: attendee.id,
         ipAddress,
@@ -405,11 +377,11 @@ async function handlePost(request: Request, env: PanelEnv): Promise<Response> {
     const questionId = getFormValue(formData, "questionId");
 
     if (questionId) {
-      voteForQuestion({ id: questionId, clientId: attendee.id, ipAddress });
+      panelState.voteForQuestion({ id: questionId, clientId: attendee.id, ipAddress });
       return redirectResponse("/", cookieHeader);
     }
 
-    const result = proposeQuestion({
+    const result = panelState.proposeQuestion({
       text: getFormValue(formData, "question"),
       role: "attendee",
       clientId: attendee.id,
@@ -419,11 +391,11 @@ async function handlePost(request: Request, env: PanelEnv): Promise<Response> {
   }
 
   if (url.pathname === "/mc/login") {
-    return await login(request, env, "mc", "/mc", cookieHeader);
+    return await login(request, env, panelState, "mc", "/mc", cookieHeader);
   }
 
   if (url.pathname === "/moderate/login") {
-    return await login(request, env, "moderator", "/moderate", cookieHeader);
+    return await login(request, env, panelState, "moderator", "/moderate", cookieHeader);
   }
 
   if (url.pathname === "/logout") {
@@ -435,11 +407,11 @@ async function handlePost(request: Request, env: PanelEnv): Promise<Response> {
   }
 
   if (url.pathname.startsWith("/mc/")) {
-    return await handleMcAction(request, env, cookieHeader);
+    return await handleMcAction(request, env, panelState, cookieHeader);
   }
 
   if (url.pathname === "/moderate" || url.pathname.startsWith("/moderate/")) {
-    return await handleModeratorAction(request, env, attendee.id, cookieHeader);
+    return await handleModeratorAction(request, env, panelState, attendee.id, cookieHeader);
   }
 
   return htmlResponse(renderNotFoundPage(url.pathname), 404);
@@ -448,6 +420,7 @@ async function handlePost(request: Request, env: PanelEnv): Promise<Response> {
 async function login(
   request: Request,
   env: PanelEnv,
+  panelState: PanelStateApi,
   role: "mc" | "moderator",
   redirectPath: string,
   headers: HeadersInit,
@@ -459,26 +432,26 @@ async function login(
   const formData = await request.formData();
   const ipAddress = getClientIp(request);
 
-  if (isLoginRateLimited({ role, ipAddress })) {
+  if (panelState.isLoginRateLimited({ role, ipAddress })) {
     return redirectResponse(withNotice(redirectPath, "Please wait before trying again."), headers);
   }
 
   if (!(await passcodeMatches(role, getFormValue(formData, "passcode"), env))) {
-    if (recordFailedLoginAttempt({ role, ipAddress })) {
+    if (panelState.recordFailedLoginAttempt({ role, ipAddress })) {
       return redirectResponse(withNotice(redirectPath, "Please wait before trying again."), headers);
     }
 
     return redirectResponse(withNotice(redirectPath, "Passcode not accepted."), headers);
   }
 
-  clearFailedLoginAttempts({ role, ipAddress });
+  panelState.clearFailedLoginAttempts({ role, ipAddress });
 
   const responseHeaders = new Headers(headers);
   responseHeaders.append("set-cookie", await createRoleCookie(role, env, isSecureRequest(request)));
   return redirectResponse(redirectPath, responseHeaders);
 }
 
-async function handleMcAction(request: Request, env: PanelEnv, headers: HeadersInit): Promise<Response> {
+async function handleMcAction(request: Request, env: PanelEnv, panelState: PanelStateApi, headers: HeadersInit): Promise<Response> {
   const auth = await readAuthState(request, env);
 
   if (auth.role !== "mc") {
@@ -489,19 +462,25 @@ async function handleMcAction(request: Request, env: PanelEnv, headers: HeadersI
 
   if (url.pathname === "/mc/select") {
     const formData = await request.formData();
-    chooseActiveQuestion(getFormValue(formData, "questionId"));
+    panelState.chooseActiveQuestion(getFormValue(formData, "questionId"));
     return redirectResponse("/mc", headers);
   }
 
   if (url.pathname === "/mc/done") {
-    markActiveQuestionDone();
+    panelState.markActiveQuestionDone();
     return redirectResponse("/mc", headers);
   }
 
   return htmlResponse(renderNotFoundPage(url.pathname), 404);
 }
 
-async function handleModeratorAction(request: Request, env: PanelEnv, attendeeId: string, headers: HeadersInit): Promise<Response> {
+async function handleModeratorAction(
+  request: Request,
+  env: PanelEnv,
+  panelState: PanelStateApi,
+  attendeeId: string,
+  headers: HeadersInit,
+): Promise<Response> {
   const auth = await readAuthState(request, env);
 
   if (auth.role !== "moderator") {
@@ -511,7 +490,7 @@ async function handleModeratorAction(request: Request, env: PanelEnv, attendeeId
   const url = new URL(request.url);
 
   if (url.pathname === "/moderate") {
-    const result = proposeQuestion({
+    const result = panelState.proposeQuestion({
       text: getFormValue(await request.formData(), "question"),
       role: "moderator",
       clientId: attendeeId,
@@ -522,7 +501,7 @@ async function handleModeratorAction(request: Request, env: PanelEnv, attendeeId
 
   if (url.pathname === "/moderate/vote") {
     const formData = await request.formData();
-    voteForQuestion({
+    panelState.voteForQuestion({
       id: getFormValue(formData, "questionId"),
       clientId: attendeeId,
       ipAddress: getClientIp(request),
@@ -532,37 +511,37 @@ async function handleModeratorAction(request: Request, env: PanelEnv, attendeeId
 
   if (url.pathname === "/moderate/hide") {
     const formData = await request.formData();
-    hideQuestion(getFormValue(formData, "questionId"));
+    panelState.hideQuestion(getFormValue(formData, "questionId"));
     return redirectResponse("/moderate", headers);
   }
 
   if (url.pathname === "/moderate/approve") {
     const formData = await request.formData();
-    approveQuestion(getFormValue(formData, "questionId"));
+    panelState.approveQuestion(getFormValue(formData, "questionId"));
     return redirectResponse("/moderate", headers);
   }
 
   if (url.pathname === "/moderate/edit") {
     const formData = await request.formData();
-    const result = editQuestion(getFormValue(formData, "questionId"), getFormValue(formData, "question"));
+    const result = panelState.editQuestion(getFormValue(formData, "questionId"), getFormValue(formData, "question"));
     return redirectResponse(withNotice("/moderate", result.message), headers);
   }
 
   if (url.pathname === "/moderate/mode") {
     const formData = await request.formData();
-    setPanelMode(readPanelMode(getFormValue(formData, "mode")));
+    panelState.setPanelMode(readPanelMode(getFormValue(formData, "mode")));
     return redirectResponse("/moderate", headers);
   }
 
   if (url.pathname === "/moderate/words/approve") {
     const formData = await request.formData();
-    approveWord(getFormValue(formData, "wordId"));
+    panelState.approveWord(getFormValue(formData, "wordId"));
     return redirectResponse("/moderate", headers);
   }
 
   if (url.pathname === "/moderate/words/vote") {
     const formData = await request.formData();
-    voteForWord({
+    panelState.voteForWord({
       id: getFormValue(formData, "wordId"),
       clientId: attendeeId,
       ipAddress: getClientIp(request),
@@ -572,29 +551,29 @@ async function handleModeratorAction(request: Request, env: PanelEnv, attendeeId
 
   if (url.pathname === "/moderate/words/hide") {
     const formData = await request.formData();
-    hideWord(getFormValue(formData, "wordId"));
+    panelState.hideWord(getFormValue(formData, "wordId"));
     return redirectResponse("/moderate", headers);
   }
 
   if (url.pathname === "/moderate/words/merge") {
     const formData = await request.formData();
-    mergeWord(getFormValue(formData, "wordId"), getFormValue(formData, "target"));
+    panelState.mergeWord(getFormValue(formData, "wordId"), getFormValue(formData, "target"));
     return redirectResponse("/moderate", headers);
   }
 
   if (url.pathname === "/moderate/words/prompt") {
     const formData = await request.formData();
-    setWordPrompt(getFormValue(formData, "prompt"));
+    panelState.setWordPrompt(getFormValue(formData, "prompt"));
     return redirectResponse(withNotice("/moderate", "Word question set."), headers);
   }
 
   if (url.pathname === "/moderate/words/end") {
-    endWordCloud();
+    panelState.endWordCloud();
     return redirectResponse(withNotice("/moderate", "Word cloud ended."), headers);
   }
 
   if (url.pathname === "/moderate/reset") {
-    resetPanel();
+    panelState.resetPanel();
     return redirectResponse(withNotice("/moderate", "Panel reset."), headers);
   }
 
@@ -700,6 +679,6 @@ function readPanelMode(value: string): PanelMode {
   return value === "wordcloud" ? "wordcloud" : "qa";
 }
 
-function getVisibleWordPrompt(): string {
-  return wordCloudEnded() ? "" : getWordPrompt();
+function getVisibleWordPrompt(panelState: PanelStateApi): string {
+  return panelState.wordCloudEnded() ? "" : panelState.getWordPrompt();
 }
