@@ -105,6 +105,7 @@ Options for stronger controls:
 - Pending questions may appear only to the submitting attendee and must not be votable before approval.
 - Attendees must not be able to vote for questions or word-cloud words they submitted.
 - Enhanced action forms must remain normal POST forms so no-JS and failed-fetch fallback paths still work.
+- Enhanced action forms must disable their submit controls while a live submission is pending to reduce duplicate click bursts.
 - Approved questions must appear on already-open attendee question pages without a manual browser refresh.
 - Approved questions and words must appear on already-open present pages without a manual browser refresh.
 - Attendee notices, including short-question validation messages, must not be removed by the immediate live-fragment refresh that follows page load.

@@ -209,10 +209,15 @@ describe("panel live updates", () => {
     let submitListener: EventListener | undefined;
     const region = createRegion("/questions/live", "old");
 
+    class TestButton {
+      disabled = false;
+    }
+
     class TestForm {
       readonly method = "post";
       readonly action = "/";
       submit = vi.fn();
+      readonly button = new TestButton();
 
       addEventListener(event: string, listener: EventListener): void {
         if (event === "submit") {
@@ -222,6 +227,10 @@ describe("panel live updates", () => {
 
       getAttribute(name: string): string | null {
         return name === "action" ? "/" : null;
+      }
+
+      querySelectorAll(selector: string): TestButton[] {
+        return selector === "button" ? [this.button] : [];
       }
     }
 
@@ -241,6 +250,7 @@ describe("panel live updates", () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(new Response("")).mockResolvedValueOnce(new Response("new votes"));
 
     vi.stubGlobal("HTMLFormElement", TestForm);
+    vi.stubGlobal("HTMLButtonElement", TestButton);
     vi.stubGlobal("FormData", TestFormData);
     vi.stubGlobal("fetch", fetch);
     vi.stubGlobal("document", document);
@@ -255,11 +265,16 @@ describe("panel live updates", () => {
       currentTarget: form,
       preventDefault,
     } as unknown as Event);
+    submitListener?.({
+      currentTarget: form,
+      preventDefault,
+    } as unknown as Event);
 
     await vi.waitFor(() => {
       expect(region.innerHTML).toBe("new votes");
     });
-    expect(preventDefault).toHaveBeenCalled();
+    expect(preventDefault).toHaveBeenCalledTimes(2);
+    expect(form.button.disabled).toBe(true);
     expect(fetch).toHaveBeenNthCalledWith(1, "/", {
       method: "post",
       body: expect.any(TestFormData),
@@ -271,16 +286,22 @@ describe("panel live updates", () => {
       headers: { accept: "text/html" },
       cache: "no-store",
     });
+    expect(fetch).toHaveBeenCalledTimes(2);
     expect(form.submit).not.toHaveBeenCalled();
   });
 
   it("falls back to normal action form submission when live actions fail", async () => {
     let submitListener: EventListener | undefined;
 
+    class TestButton {
+      disabled = false;
+    }
+
     class TestForm {
       readonly method = "post";
       readonly action = "/";
       submit = vi.fn();
+      readonly button = new TestButton();
 
       addEventListener(_event: string, listener: EventListener): void {
         submitListener = listener;
@@ -288,6 +309,10 @@ describe("panel live updates", () => {
 
       getAttribute(name: string): string | null {
         return name === "action" ? "/" : null;
+      }
+
+      querySelectorAll(selector: string): Array<typeof this.button> {
+        return selector === "button" ? [this.button] : [];
       }
     }
 
@@ -304,6 +329,7 @@ describe("panel live updates", () => {
     };
 
     vi.stubGlobal("HTMLFormElement", TestForm);
+    vi.stubGlobal("HTMLButtonElement", TestButton);
     vi.stubGlobal("FormData", TestFormData);
     vi.stubGlobal(
       "fetch",
@@ -323,6 +349,7 @@ describe("panel live updates", () => {
       expect(form.submit).toHaveBeenCalledTimes(1);
     });
     expect(preventDefault).toHaveBeenCalled();
+    expect(form.button.disabled).toBe(false);
     expect(document.querySelectorAll).not.toHaveBeenCalled();
   });
 

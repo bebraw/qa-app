@@ -4,6 +4,7 @@ const panelStateEvent = "panel-state";
 const enterSubmitTextareas = new WeakSet<HTMLTextAreaElement>();
 const validatedQuestionForms = new WeakSet<HTMLFormElement>();
 const liveActionForms = new WeakSet<HTMLFormElement>();
+const pendingLiveActionForms = new WeakSet<HTMLFormElement>();
 const liveNoticeClass = "rounded-lg border border-app-line bg-white px-4 py-3 text-sm font-semibold text-app-text-soft shadow-panel";
 
 interface LiveRegion extends HTMLElement {
@@ -236,6 +237,13 @@ async function submitLiveActionForm(event: SubmitEvent): Promise<void> {
 
   event.preventDefault();
 
+  if (pendingLiveActionForms.has(target)) {
+    return;
+  }
+
+  pendingLiveActionForms.add(target);
+  const disabledControls = disableLiveActionControls(target);
+
   try {
     const response = await fetch(target.getAttribute("action") || target.action, {
       method: target.method || "post",
@@ -246,13 +254,37 @@ async function submitLiveActionForm(event: SubmitEvent): Promise<void> {
     });
 
     if (!response.ok) {
+      restoreLiveActionControls(disabledControls);
+      pendingLiveActionForms.delete(target);
       target.submit();
       return;
     }
 
     refreshRegions(findLiveRegions(document), { forceFocused: true });
   } catch {
+    restoreLiveActionControls(disabledControls);
+    pendingLiveActionForms.delete(target);
     target.submit();
+  }
+}
+
+function disableLiveActionControls(form: HTMLFormElement): HTMLButtonElement[] {
+  if (typeof HTMLButtonElement === "undefined") {
+    return [];
+  }
+
+  const controls = [...form.querySelectorAll<HTMLButtonElement>("button")].filter((button) => !button.disabled);
+
+  for (const control of controls) {
+    control.disabled = true;
+  }
+
+  return controls;
+}
+
+function restoreLiveActionControls(controls: readonly HTMLButtonElement[]): void {
+  for (const control of controls) {
+    control.disabled = false;
   }
 }
 
