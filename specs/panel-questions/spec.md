@@ -117,6 +117,7 @@ Options for stronger controls:
 - Word-cloud layout must weight approved words by total count instead of rendering every word at the same visual size.
 - Panel state routes must use the `PANEL_ROOM` Durable Object binding when it is configured.
 - Durable Object room hydration must tolerate older persisted snapshots that are missing newer optional collections, so reset remains available after deployments that change the serialized state shape.
+- Unhandled Worker and Durable Object room errors must be logged with route-level context and must not include request bodies, form data, cookies, passcodes, auth headers, or query-string values.
 - Moderator word merges must support exact normalized matches and manually chosen variants such as different casing, punctuation, or alternate words.
 - Ending word-cloud mode must stop attendee/screen visibility while keeping data visible to the moderator until reset.
 - The screen view must not show anything except the active question or an empty waiting state.

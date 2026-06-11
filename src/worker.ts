@@ -90,6 +90,12 @@ interface LiveClient {
   readonly writer: WritableStreamDefaultWriter<Uint8Array>;
 }
 
+interface CloudflareRequest extends Request {
+  readonly cf?: {
+    readonly colo?: unknown;
+  };
+}
+
 export interface PanelWorkerEnv extends PanelEnv {
   readonly PANEL_ROOM?: PanelDurableObjectNamespace;
 }
@@ -101,7 +107,12 @@ const encoder = new TextEncoder();
 
 export default {
   async fetch(request: Request, env?: PanelWorkerEnv): Promise<Response> {
-    return await handleRequest(request, env ?? {});
+    try {
+      return await handleRequest(request, env ?? {});
+    } catch (error) {
+      logUnhandledRequestError("worker", request, error);
+      throw error;
+    }
   },
 };
 
@@ -115,21 +126,26 @@ export class PanelRoom {
   ) {}
 
   async fetch(request: Request): Promise<Response> {
-    await this.hydrate();
-    const url = new URL(request.url);
+    try {
+      await this.hydrate();
+      const url = new URL(request.url);
 
-    if (url.pathname === panelEventsPath) {
-      return await this.createEventsResponse(request);
+      if (url.pathname === panelEventsPath) {
+        return await this.createEventsResponse(request);
+      }
+
+      const response = await handleRequest(request, this.env, false);
+
+      if (changesPanelState(request)) {
+        await this.state.storage.put(panelStateStorageKey, serializePanelState());
+        this.broadcastPanelStateChanged();
+      }
+
+      return response;
+    } catch (error) {
+      logUnhandledRequestError("panel-room", request, error);
+      throw error;
     }
-
-    const response = await handleRequest(request, this.env, false);
-
-    if (changesPanelState(request)) {
-      await this.state.storage.put(panelStateStorageKey, serializePanelState());
-      this.broadcastPanelStateChanged();
-    }
-
-    return response;
   }
 
   private createEventsResponse(request: Request): Response {
@@ -694,6 +710,35 @@ function changesPanelState(request: Request): boolean {
 async function fetchPanelRoom(request: Request, namespace: PanelDurableObjectNamespace): Promise<Response> {
   const id = namespace.idFromName("default");
   return await namespace.get(id).fetch(request);
+}
+
+function logUnhandledRequestError(source: "worker" | "panel-room", request: Request, error: unknown): void {
+  const url = new URL(request.url);
+  const cf = (request as CloudflareRequest).cf;
+
+  console.error("Unhandled request error", {
+    source,
+    method: request.method,
+    path: url.pathname,
+    cfRay: request.headers.get("cf-ray") ?? undefined,
+    colo: typeof cf?.colo === "string" ? cf.colo : undefined,
+    error: serializeError(error),
+  });
+}
+
+function serializeError(error: unknown): { readonly name: string; readonly message: string; readonly stack?: string | undefined } {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    };
+  }
+
+  return {
+    name: "NonError",
+    message: String(error),
+  };
 }
 
 function readPanelMode(value: string): PanelMode {

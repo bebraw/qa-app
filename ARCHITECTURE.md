@@ -29,6 +29,7 @@ Use this file for global constraints. Use feature specs under `specs/` for domai
 - Local CI should validate the same baseline checks before non-documentation changes are proposed or merged.
 - Targeted commands are useful while iterating, but `npm run quality:gate` and `npm run ci:local` remain the readiness baseline before proposing or landing non-documentation changes.
 - Documentation-only changes may skip `npm run ci:local` when they do not alter executable config, generated artifacts, package metadata, source code, or tests.
+- Worker production error handling should log unhandled boundary failures with route-level context while excluding request bodies, form data, cookies, auth headers, passcodes, and query strings.
 
 ## Capability Kits
 

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PanelEnv } from "./panel/auth";
 import { clearPanelStateForTests } from "./panel/state";
 import worker, { PanelRoom, handleRequest, type PanelWorkerEnv } from "./worker";
@@ -15,6 +15,10 @@ const env: PanelEnv = {
 describe("worker", () => {
   beforeEach(() => {
     clearPanelStateForTests();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("renders the attendee question page", async () => {
@@ -754,6 +758,80 @@ describe("worker", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ ok: true });
+  });
+
+  it("logs unhandled worker entrypoint errors without request secrets", async () => {
+    const error = new Error("room unavailable");
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await expect(
+      worker.fetch(
+        new Request("https://example.com/moderate/reset?notice=contains-secret", {
+          method: "POST",
+          headers: { cookie: "panel_auth_moderator=secret", "cf-ray": "abc123-RIX" },
+        }),
+        {
+          PANEL_ROOM: {
+            idFromName: () => "default",
+            get: () => ({
+              fetch: async () => {
+                throw error;
+              },
+            }),
+          },
+        },
+      ),
+    ).rejects.toThrow("room unavailable");
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      "Unhandled request error",
+      expect.objectContaining({
+        source: "worker",
+        method: "POST",
+        path: "/moderate/reset",
+        cfRay: "abc123-RIX",
+        error: expect.objectContaining({ name: "Error", message: "room unavailable" }),
+      }),
+    );
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain("contains-secret");
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain("panel_auth_moderator");
+  });
+
+  it("logs durable object room errors before rethrowing them", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const room = new PanelRoom(
+      {
+        storage: {
+          get: async () => {
+            throw new Error("storage unavailable");
+          },
+          put: async () => undefined,
+        },
+      },
+      env,
+    );
+
+    await expect(
+      room.fetch(
+        new Request("https://example.com/moderate/reset?notice=contains-secret", {
+          method: "POST",
+          headers: { cookie: "panel_auth_moderator=secret", "cf-ray": "def456-RIX" },
+        }),
+      ),
+    ).rejects.toThrow("storage unavailable");
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      "Unhandled request error",
+      expect.objectContaining({
+        source: "panel-room",
+        method: "POST",
+        path: "/moderate/reset",
+        cfRay: "def456-RIX",
+        error: expect.objectContaining({ name: "Error", message: "storage unavailable" }),
+      }),
+    );
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain("contains-secret");
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain("panel_auth_moderator");
   });
 
   it("serves generated styles", async () => {

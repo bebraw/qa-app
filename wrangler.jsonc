@@ -3,6 +3,14 @@
   "name": "qa-app",
   "main": "src/worker.ts",
   "compatibility_date": "2026-03-28",
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+      "persist": true,
+    },
+  },
   "build": {
     "command": "npm run build",
     "watch_dir": "src",

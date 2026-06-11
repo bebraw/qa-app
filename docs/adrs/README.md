@@ -62,6 +62,8 @@ No accepted-only ADRs are currently pending implementation.
 | [ADR-027](./implemented/ADR-027-use-server-rendered-in-memory-panel-queue.md)         | Implemented | Use a Durable Object-backed panel room for the live conference workflow.                       |
 | [ADR-028](./implemented/ADR-028-lock-local-agent-ci-installs.md)                      | Implemented | Lock local Agent CI installs so parallel jobs share the warm dependency tree safely.           |
 | [ADR-029](./implemented/ADR-029-use-incremental-local-mutation-gate.md)               | Implemented | Use incremental Stryker mutation testing for repeated local quality-gate runs.                 |
+| [ADR-031](./implemented/ADR-031-progressively-enhance-panel-action-forms.md)          | Implemented | Progressively enhance selected panel actions while preserving form fallbacks.                  |
+| [ADR-032](./implemented/ADR-032-enable-worker-error-observability.md)                 | Implemented | Enable persisted Worker observability and structured unhandled error logs.                     |
 
 ## Creating A New ADR
 
