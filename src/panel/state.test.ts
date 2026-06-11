@@ -360,6 +360,49 @@ describe("panel state", () => {
     expect(getWordPrompt()).toBe("");
   });
 
+  it("hydrates older durable object state without newer collections", () => {
+    loadPanelState({
+      questions: [
+        {
+          id: "question-1",
+          text: "Which persisted question should still load?",
+          proposedBy: "moderator",
+          createdAt: 1,
+          voterIds: [],
+          status: "available",
+        },
+        {
+          id: "question-2",
+          text: "Which pending question has no stored submitter?",
+          proposedBy: "attendee",
+          createdAt: 2,
+          voterIds: [],
+          status: "pending",
+        },
+      ],
+    });
+
+    expect(listModeratorQuestions("moderator-1").map((question) => question.text)).toContain("Which persisted question should still load?");
+    expect(listAudienceQuestions("Stryker was here!").map((question) => question.text)).not.toContain(
+      "Which pending question has no stored submitter?",
+    );
+    expect(getWordPrompt()).toBe("");
+    expect(serializePanelState().rateLimits).toEqual([]);
+
+    loadPanelState({
+      questions: [],
+      words: [],
+      rateLimits: [["login:moderator:203.0.113.44", [1, 2, 3, 4, 5, 6, 7, 8]]],
+    });
+
+    expect(isLoginRateLimited({ role: "moderator", ipAddress: "203.0.113.44", now: 9 })).toBe(true);
+
+    resetPanel();
+
+    expect(listModeratorQuestions("moderator-1")).toEqual([]);
+    expect(listAudienceWords("attendee-1")).toEqual([]);
+  });
+
   it("keeps active questions first even when selected after another question", () => {
     const first = proposeQuestion({
       text: "Which question should stay below the active one?",

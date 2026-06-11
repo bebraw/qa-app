@@ -525,14 +525,18 @@ export function serializePanelState(): SerializedPanelState {
   };
 }
 
-export function loadPanelState(state: SerializedPanelState | undefined): void {
+export function loadPanelState(state: Partial<SerializedPanelState> | undefined): void {
   clearPanelStateForTests();
 
   if (!state) {
     return;
   }
 
-  for (const question of state.questions) {
+  const questions = Array.isArray(state.questions) ? state.questions : [];
+  const words = Array.isArray(state.words) ? state.words : [];
+  const rateLimits = Array.isArray(state.rateLimits) ? state.rateLimits : [];
+
+  for (const question of questions) {
     store.questions.set(question.id, {
       ...question,
       submittedById: question.submittedById ?? question.voterIds[0] ?? "",
@@ -540,7 +544,7 @@ export function loadPanelState(state: SerializedPanelState | undefined): void {
     });
   }
 
-  for (const word of state.words) {
+  for (const word of words) {
     store.words.set(word.id, {
       ...word,
       submitterIds: new Set(word.submitterIds ?? []),
@@ -548,7 +552,7 @@ export function loadPanelState(state: SerializedPanelState | undefined): void {
     });
   }
 
-  for (const [key, timestamps] of state.rateLimits) {
+  for (const [key, timestamps] of rateLimits) {
     store.rateLimits.set(key, { timestamps: [...timestamps] });
   }
 
