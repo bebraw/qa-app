@@ -403,6 +403,36 @@ describe("panel state", () => {
     expect(listAudienceWords("attendee-1")).toEqual([]);
   });
 
+  it("hydrates legacy persisted questions and words without stored voters", () => {
+    loadPanelState({
+      questions: [
+        {
+          id: "question-1",
+          text: "Which legacy question should stay available?",
+          proposedBy: "moderator",
+          createdAt: 1,
+          status: "available",
+        },
+      ],
+      words: [
+        {
+          id: "word-1",
+          text: "Reliability",
+          normalizedText: "reliability",
+          createdAt: 2,
+          submissionCount: 1,
+          status: "approved",
+        },
+      ],
+      rateLimits: [],
+    });
+
+    expect(listAudienceQuestions("attendee-1").map((question) => [question.text, question.votes])).toEqual([
+      ["Which legacy question should stay available?", 0],
+    ]);
+    expect(listAudienceWords("attendee-1").map((word) => [word.text, word.count])).toEqual([["Reliability", 1]]);
+  });
+
   it("keeps active questions first even when selected after another question", () => {
     const first = proposeQuestion({
       text: "Which question should stay below the active one?",

@@ -293,6 +293,44 @@ describe("worker", () => {
     ).resolves.toContain("Great!");
   });
 
+  it("redirects malformed attendee form submissions instead of throwing", async () => {
+    const room = createTestPanelRoom(new Map<string, unknown>());
+    const response = await room.fetch(
+      new Request("http://example.com/", {
+        method: "POST",
+        headers: { "content-type": "multipart/form-data; boundary=missing" },
+        body: "not a valid multipart body",
+      }),
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toContain("Invalid+form+submission");
+  });
+
+  it("redirects malformed protected form submissions instead of throwing", async () => {
+    const moderatorLogin = await handleRequest(
+      new Request("http://example.com/moderate/login", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ passcode: "mod-passcode" }),
+      }),
+      env,
+    );
+    const moderatorCookie = cookieHeaderFromResponse(moderatorLogin);
+
+    const response = await handleRequest(
+      new Request("http://example.com/moderate/approve", {
+        method: "POST",
+        headers: { "content-type": "multipart/form-data; boundary=missing", cookie: moderatorCookie },
+        body: "not a valid multipart body",
+      }),
+      env,
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toContain("Invalid+form+submission");
+  });
+
   it("lets moderator switch the attendee root between QA and wordcloud modes", async () => {
     const moderatorLogin = await handleRequest(
       new Request("http://example.com/moderate/login", {
@@ -406,6 +444,49 @@ describe("worker", () => {
 
     expect(moderatorHtml).toContain("Can everyone see the same approved queue now?");
     expect(moderatorHtml).toContain("Under consideration");
+  });
+
+  it("retries transient durable object internal errors for live GET fragments", async () => {
+    const fetch = vi
+      .fn<(request: Request) => Promise<Response>>()
+      .mockRejectedValueOnce(new Error("internal error; reference = test-reference"))
+      .mockResolvedValueOnce(new Response("retried live fragment"));
+    const durableEnv: PanelWorkerEnv = {
+      PANEL_ROOM: {
+        idFromName: () => "default",
+        get: () => ({ fetch }),
+      },
+    };
+
+    const response = await handleRequest(new Request("http://example.com/live"), durableEnv);
+
+    expect(response.status).toBe(200);
+    await expect(response.text()).resolves.toBe("retried live fragment");
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry transient durable object internal errors for POST requests", async () => {
+    const fetch = vi
+      .fn<(request: Request) => Promise<Response>>()
+      .mockRejectedValue(new Error("internal error; reference = test-reference"));
+    const durableEnv: PanelWorkerEnv = {
+      PANEL_ROOM: {
+        idFromName: () => "default",
+        get: () => ({ fetch }),
+      },
+    };
+
+    await expect(
+      handleRequest(
+        new Request("http://example.com/", {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ question: "Will this post avoid duplicate retries?" }),
+        }),
+        durableEnv,
+      ),
+    ).rejects.toThrow("internal error; reference = test-reference");
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it("streams panel state change events from the durable object room", async () => {

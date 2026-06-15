@@ -78,7 +78,7 @@ interface SerializedQuestion {
   readonly proposedBy: PanelRole;
   readonly submittedById?: string | undefined;
   readonly createdAt: number;
-  readonly voterIds: string[];
+  readonly voterIds?: string[] | undefined;
   readonly status: QuestionStatus;
 }
 
@@ -89,7 +89,7 @@ interface SerializedWord {
   readonly createdAt: number;
   readonly submissionCount: number;
   readonly submitterIds?: string[] | undefined;
-  readonly voterIds: string[];
+  readonly voterIds?: string[] | undefined;
   readonly status: WordStatus;
 }
 
@@ -537,18 +537,20 @@ export function loadPanelState(state: Partial<SerializedPanelState> | undefined)
   const rateLimits = Array.isArray(state.rateLimits) ? state.rateLimits : [];
 
   for (const question of questions) {
+    const voterIds = Array.isArray(question.voterIds) ? question.voterIds : [];
     store.questions.set(question.id, {
       ...question,
-      submittedById: question.submittedById ?? question.voterIds[0] ?? "",
-      voterIds: new Set(question.voterIds),
+      submittedById: question.submittedById ?? voterIds[0] ?? "",
+      voterIds: new Set(voterIds),
     });
   }
 
   for (const word of words) {
+    const voterIds = Array.isArray(word.voterIds) ? word.voterIds : [];
     store.words.set(word.id, {
       ...word,
       submitterIds: new Set(word.submitterIds ?? []),
-      voterIds: new Set(word.voterIds),
+      voterIds: new Set(voterIds),
     });
   }
 

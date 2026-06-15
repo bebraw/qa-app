@@ -399,7 +399,12 @@ async function handlePost(request: Request, env: PanelEnv): Promise<Response> {
   const cookieHeader = cookieHeaders(attendee.cookie);
 
   if (url.pathname === "/") {
-    const formData = await request.formData();
+    const formData = await readFormData(request);
+
+    if (!formData) {
+      return redirectResponse(withNotice("/", "Invalid form submission."), cookieHeader);
+    }
+
     const ipAddress = getClientIp(request);
 
     if (getPanelMode() === "wordcloud") {
@@ -472,7 +477,12 @@ async function login(
     return redirectResponse(withNotice(redirectPath, "Role access is not configured."), headers);
   }
 
-  const formData = await request.formData();
+  const formData = await readFormData(request);
+
+  if (!formData) {
+    return redirectResponse(withNotice(redirectPath, "Invalid form submission."), headers);
+  }
+
   const ipAddress = getClientIp(request);
 
   if (isLoginRateLimited({ role, ipAddress })) {
@@ -504,7 +514,12 @@ async function handleMcAction(request: Request, env: PanelEnv, headers: HeadersI
   const url = new URL(request.url);
 
   if (url.pathname === "/mc/select") {
-    const formData = await request.formData();
+    const formData = await readFormData(request);
+
+    if (!formData) {
+      return redirectResponse(withNotice("/mc", "Invalid form submission."), headers);
+    }
+
     chooseActiveQuestion(getFormValue(formData, "questionId"));
     return redirectResponse("/mc", headers);
   }
@@ -527,8 +542,14 @@ async function handleModeratorAction(request: Request, env: PanelEnv, attendeeId
   const url = new URL(request.url);
 
   if (url.pathname === "/moderate") {
+    const formData = await readFormData(request);
+
+    if (!formData) {
+      return redirectResponse(withNotice("/moderate", "Invalid form submission."), headers);
+    }
+
     const result = proposeQuestion({
-      text: getFormValue(await request.formData(), "question"),
+      text: getFormValue(formData, "question"),
       role: "moderator",
       clientId: attendeeId,
       ipAddress: getClientIp(request),
@@ -537,7 +558,12 @@ async function handleModeratorAction(request: Request, env: PanelEnv, attendeeId
   }
 
   if (url.pathname === "/moderate/vote") {
-    const formData = await request.formData();
+    const formData = await readFormData(request);
+
+    if (!formData) {
+      return redirectResponse(withNotice("/moderate", "Invalid form submission."), headers);
+    }
+
     voteForQuestion({
       id: getFormValue(formData, "questionId"),
       clientId: attendeeId,
@@ -547,37 +573,67 @@ async function handleModeratorAction(request: Request, env: PanelEnv, attendeeId
   }
 
   if (url.pathname === "/moderate/hide") {
-    const formData = await request.formData();
+    const formData = await readFormData(request);
+
+    if (!formData) {
+      return redirectResponse(withNotice("/moderate", "Invalid form submission."), headers);
+    }
+
     hideQuestion(getFormValue(formData, "questionId"));
     return redirectResponse("/moderate", headers);
   }
 
   if (url.pathname === "/moderate/approve") {
-    const formData = await request.formData();
+    const formData = await readFormData(request);
+
+    if (!formData) {
+      return redirectResponse(withNotice("/moderate", "Invalid form submission."), headers);
+    }
+
     approveQuestion(getFormValue(formData, "questionId"));
     return redirectResponse("/moderate", headers);
   }
 
   if (url.pathname === "/moderate/edit") {
-    const formData = await request.formData();
+    const formData = await readFormData(request);
+
+    if (!formData) {
+      return redirectResponse(withNotice("/moderate", "Invalid form submission."), headers);
+    }
+
     const result = editQuestion(getFormValue(formData, "questionId"), getFormValue(formData, "question"));
     return redirectResponse(withNotice("/moderate", result.message), headers);
   }
 
   if (url.pathname === "/moderate/mode") {
-    const formData = await request.formData();
+    const formData = await readFormData(request);
+
+    if (!formData) {
+      return redirectResponse(withNotice("/moderate", "Invalid form submission."), headers);
+    }
+
     setPanelMode(readPanelMode(getFormValue(formData, "mode")));
     return redirectResponse("/moderate", headers);
   }
 
   if (url.pathname === "/moderate/words/approve") {
-    const formData = await request.formData();
+    const formData = await readFormData(request);
+
+    if (!formData) {
+      return redirectResponse(withNotice("/moderate", "Invalid form submission."), headers);
+    }
+
     approveWord(getFormValue(formData, "wordId"));
     return redirectResponse("/moderate", headers);
   }
 
   if (url.pathname === "/moderate/words/vote") {
-    const formData = await request.formData();
+    const formData = await readFormData(request);
+
+    if (!formData) {
+      return redirectResponse(withNotice("/moderate", "Invalid form submission."), headers);
+    }
+
     voteForWord({
       id: getFormValue(formData, "wordId"),
       clientId: attendeeId,
@@ -587,19 +643,34 @@ async function handleModeratorAction(request: Request, env: PanelEnv, attendeeId
   }
 
   if (url.pathname === "/moderate/words/hide") {
-    const formData = await request.formData();
+    const formData = await readFormData(request);
+
+    if (!formData) {
+      return redirectResponse(withNotice("/moderate", "Invalid form submission."), headers);
+    }
+
     hideWord(getFormValue(formData, "wordId"));
     return redirectResponse("/moderate", headers);
   }
 
   if (url.pathname === "/moderate/words/merge") {
-    const formData = await request.formData();
+    const formData = await readFormData(request);
+
+    if (!formData) {
+      return redirectResponse(withNotice("/moderate", "Invalid form submission."), headers);
+    }
+
     mergeWord(getFormValue(formData, "wordId"), getFormValue(formData, "target"));
     return redirectResponse("/moderate", headers);
   }
 
   if (url.pathname === "/moderate/words/prompt") {
-    const formData = await request.formData();
+    const formData = await readFormData(request);
+
+    if (!formData) {
+      return redirectResponse(withNotice("/moderate", "Invalid form submission."), headers);
+    }
+
     setWordPrompt(getFormValue(formData, "prompt"));
     return redirectResponse(withNotice("/moderate", "Word question set."), headers);
   }
@@ -615,6 +686,14 @@ async function handleModeratorAction(request: Request, env: PanelEnv, attendeeId
   }
 
   return htmlResponse(renderNotFoundPage(url.pathname), 404);
+}
+
+async function readFormData(request: Request): Promise<FormData | undefined> {
+  try {
+    return await request.formData();
+  } catch {
+    return undefined;
+  }
 }
 
 function getFormValue(formData: FormData, name: string): string {
@@ -709,7 +788,21 @@ function changesPanelState(request: Request): boolean {
 
 async function fetchPanelRoom(request: Request, namespace: PanelDurableObjectNamespace): Promise<Response> {
   const id = namespace.idFromName("default");
-  return await namespace.get(id).fetch(request);
+  const stub = namespace.get(id);
+
+  try {
+    return await stub.fetch(request);
+  } catch (error) {
+    if (request.method !== "GET" || !isRetriableDurableObjectFetchError(error)) {
+      throw error;
+    }
+
+    return await stub.fetch(request);
+  }
+}
+
+function isRetriableDurableObjectFetchError(error: unknown): boolean {
+  return error instanceof Error && error.message.startsWith("internal error; reference = ");
 }
 
 function logUnhandledRequestError(source: "worker" | "panel-room", request: Request, error: unknown): void {
